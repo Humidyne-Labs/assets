@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b1120" />
+      <stop offset="50%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+    <linearGradient id="flameGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#ea580c" />
+      <stop offset="50%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#fde047" />
+    </linearGradient>
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="50%" stop-color="#06b6d4" />
+      <stop offset="100%" stop-color="#f59e0b" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="16" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background Canvas -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+  <rect width="504" height="504" x="4" y="4" rx="108" stroke="#334155" stroke-width="3" stroke-opacity="0.5" />
+
+  <!-- Outer Telemetry Ring -->
+  <circle cx="256" cy="256" r="190" stroke="url(#ringGrad)" stroke-width="12" stroke-linecap="round" stroke-dasharray="16 12" opacity="0.85" filter="url(#glow)" />
+  <circle cx="256" cy="256" r="160" stroke="#1e293b" stroke-width="4" stroke-dasharray="4 8" opacity="0.6" />
+
+  <!-- Center Glow Backing -->
+  <circle cx="256" cy="270" r="100" fill="#f59e0b" opacity="0.15" filter="url(#glow)" />
+
+  <!-- Core Flame & Humidity Drop Symbol -->
+  <path d="M256 120 C230 190 170 240 170 300 C170 348 208 386 256 386 C304 386 342 348 342 300 C342 240 282 190 256 120 Z" fill="url(#flameGrad)" filter="url(#glow)" />
+  
+  <!-- Inner Climate Drop Highlight -->
+  <path d="M256 180 C242 225 204 258 204 298 C204 327 227 350 256 350 C285 350 308 327 308 298 C308 258 270 225 256 180 Z" fill="#0f172a" opacity="0.9" />
+
+  <!-- Core Emerald Drop Sensor Symbol -->
+  <path d="M256 215 C248 245 224 268 224 294 C224 312 238 326 256 326 C274 326 288 312 288 294 C288 268 264 245 256 215 Z" fill="#10b981" />
+  <circle cx="248" cy="285" r="8" fill="#ffffff" opacity="0.75" />
+
+  <!-- Tick Marks -->
+  <circle cx="256" cy="66" r="6" fill="#10b981" />
+  <circle cx="446" cy="256" r="6" fill="#f59e0b" />
+  <circle cx="256" cy="446" r="6" fill="#06b6d4" />
+  <circle cx="66" cy="256" r="6" fill="#f59e0b" />
+</svg>
