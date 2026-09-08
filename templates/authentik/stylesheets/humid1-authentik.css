@@ -1,0 +1,277 @@
+/* ==========================================================================
+   HUMID1_OS GLOBAL RESETS & VARIABLES
+   ========================================================================== */
+:root {
+    --ak-font-family: 'JetBrains Mono', monospace !important;
+    --pf-v5-global--FontFamily--sans-serif: 'JetBrains Mono', monospace !important;
+    --pf-v5-global--FontFamily--monospace: 'JetBrains Mono', monospace !important;
+    --pf-v5-global--BorderRadius--sm: 0px !important;
+    --pf-v5-global--BorderRadius--md: 0px !important;
+    --pf-v5-global--BorderRadius--lg: 0px !important;
+    --pf-v5-global--primary-color--100: #ffffff !important;
+    --pf-v5-global--primary-color--200: #ff3b30 !important;
+    --pf-v5-global--active-color--100: #ffffff !important;
+    --pf-v5-global--active-color--200: #ff3b30 !important;
+}
+
+/* Base Body & Layout */
+body, 
+.pf-v5-c-login, 
+.pf-v5-c-page,
+.pf-v5-c-page__main {
+    font-family: 'JetBrains Mono', monospace !important;
+    background-color: #080808 !important;
+    color: #f0f0f0 !important;
+    letter-spacing: -0.01em;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: #080808;
+}
+::-webkit-scrollbar-thumb {
+    background: #333333;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #ffffff;
+}
+
+/* ==========================================================================
+   HEADER, SIDEBAR & MASTHEAD
+   ========================================================================== */
+.pf-v5-c-masthead,
+.pf-v5-c-page__sidebar,
+.pf-v5-c-page__header {
+    background-color: #0d0d0d !important;
+    border-bottom: 2px solid #222222 !important;
+    border-right: 2px solid #222222 !important;
+}
+
+.pf-v5-c-nav__link {
+    font-family: 'JetBrains Mono', monospace !important;
+    text-transform: uppercase !important;
+    font-size: 12px !important;
+    letter-spacing: 0.05em;
+    border-radius: 0px !important;
+}
+
+.pf-v5-c-nav__link.pf-m-current, 
+.pf-v5-c-nav__link:hover {
+    background-color: #1a1a1a !important;
+    color: #ffffff !important;
+    border-left: 3px solid #ff3b30 !important;
+}
+
+/* Dropdowns & Language Selector */
+.pf-v5-c-dropdown__toggle, 
+select.pf-v5-c-form-control,
+.pf-v5-c-menu {
+    border-radius: 0px !important;
+    background-color: #111111 !important;
+    border: 1px solid #333333 !important;
+    color: #ffffff !important;
+    font-size: 11px !important;
+    box-shadow: 3px 3px 0 0 #000000 !important;
+}
+
+/* ==========================================================================
+   AUTHENTICATION / FLOW CARDS
+   ========================================================================== */
+.pf-v5-c-login__container, 
+.pf-v5-c-card {
+    border-radius: 0px !important;
+    border: 2px solid #333333 !important;
+    box-shadow: 6px 6px 0px 0px rgba(255, 255, 255, 0.15) !important;
+    background-color: #111111 !important;
+    color: #ffffff !important;
+}
+
+.pf-v5-c-login__header {
+    border-bottom: 1px solid #222222;
+    padding-bottom: 16px;
+    margin-bottom: 20px;
+}
+
+.pf-v5-c-title {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.03em !important;
+    text-transform: uppercase !important;
+    color: #ffffff !important;
+}
+
+/* ==========================================================================
+   FORM INPUTS & LABELS
+   ========================================================================== */
+.pf-v5-c-form__label,
+.pf-v5-c-form__label-text {
+    font-size: 11px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.08em !important;
+    font-weight: 700 !important;
+    color: #aaaaaa !important;
+}
+
+.pf-v5-c-form-control, 
+input, 
+textarea {
+    border-radius: 0px !important;
+    border: 1px solid #444444 !important;
+    background-color: #181818 !important;
+    color: #ffffff !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 13px !important;
+    box-shadow: none !important;
+}
+
+.pf-v5-c-form-control:focus, 
+input:focus, 
+textarea:focus {
+    border: 1px solid #ffffff !important;
+    background-color: #202020 !important;
+    outline: none !important;
+    box-shadow: 2px 2px 0 0 #ffffff !important;
+}
+
+/* Checkboxes / Radio */
+.pf-v5-c-check__input {
+    border-radius: 0px !important;
+    border: 1px solid #555555 !important;
+    background-color: #181818 !important;
+}
+
+.pf-v5-c-check__input:checked {
+    background-color: #ffffff !important;
+    border-color: #ffffff !important;
+}
+
+/* Helper text & validation */
+.pf-v5-c-form__helper-text,
+.pf-v5-c-helper-text__item {
+    font-size: 11px !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    color: #777777 !important;
+}
+
+/* ==========================================================================
+   BUTTONS
+   ========================================================================== */
+/* Primary Buttons */
+.pf-v5-c-button.pf-m-primary {
+    border-radius: 0px !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border: 1px solid #ffffff !important;
+    font-weight: 800 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.08em !important;
+    font-size: 12px !important;
+    padding: 10px 18px !important;
+    transition: all 120ms ease-in-out !important;
+}
+
+.pf-v5-c-button.pf-m-primary:hover {
+    background-color: #ff3b30 !important;
+    border-color: #ff3b30 !important;
+    color: #ffffff !important;
+    box-shadow: 4px 4px 0 0 #ffffff !important;
+    transform: translate(-2px, -2px) !important;
+}
+
+/* Secondary / Outline Buttons */
+.pf-v5-c-button.pf-m-secondary {
+    border-radius: 0px !important;
+    background-color: transparent !important;
+    color: #ffffff !important;
+    border: 1px solid #444444 !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    font-size: 12px !important;
+}
+
+.pf-v5-c-button.pf-m-secondary:hover {
+    border-color: #ffffff !important;
+    background-color: #1a1a1a !important;
+    color: #ffffff !important;
+}
+
+/* Link Buttons & Plain text links */
+.pf-v5-c-button.pf-m-link,
+a {
+    color: #aaaaaa;
+    text-decoration: none;
+    font-size: 12px;
+}
+
+a:hover,
+.pf-v5-c-button.pf-m-link:hover {
+    color: #ffffff !important;
+    text-decoration: underline !important;
+}
+
+/* Social / OAuth Flow Buttons */
+.ak-login-social-container .pf-v5-c-button {
+    border-radius: 0px !important;
+    border: 1px solid #333333 !important;
+    background-color: #161616 !important;
+    color: #ffffff !important;
+}
+
+.ak-login-social-container .pf-v5-c-button:hover {
+    border-color: #ffffff !important;
+    background-color: #222222 !important;
+}
+
+/* ==========================================================================
+   APP LIBRARY & USER DASHBOARD TILES
+   ========================================================================== */
+.ak-app-icon, 
+.pf-v5-c-card.pf-m-selectable,
+.pf-v5-c-card.pf-m-selectable-raised {
+    border-radius: 0px !important;
+    border: 1px solid #282828 !important;
+    background-color: #121212 !important;
+    transition: all 120ms ease !important;
+    box-shadow: 3px 3px 0 0 #000000 !important;
+}
+
+.pf-v5-c-card.pf-m-selectable:hover,
+.pf-v5-c-card.pf-m-selectable-raised:hover {
+    border-color: #ffffff !important;
+    box-shadow: 5px 5px 0 0 #ffffff !important;
+    transform: translate(-2px, -2px) !important;
+}
+
+.pf-v5-c-card__title, 
+.ak-app-name {
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.02em !important;
+}
+
+/* ==========================================================================
+   ALERTS, NOTIFICATIONS & BANNERS
+   ========================================================================== */
+.pf-v5-c-alert {
+    border-radius: 0px !important;
+    border: 1px solid #444444 !important;
+    background-color: #121212 !important;
+    color: #ffffff !important;
+    box-shadow: 4px 4px 0 0 #000000 !important;
+}
+
+.pf-v5-c-alert.pf-m-danger {
+    border-color: #ff3b30 !important;
+    border-left: 6px solid #ff3b30 !important;
+}
+
+.pf-v5-c-alert.pf-m-success {
+    border-color: #ffffff !important;
+    border-left: 6px solid #ffffff !important;
+}
