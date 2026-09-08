@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------
-# file: vrpc-alarmtest.py
+# file: vrpc-alarm-test.py
 # Virtual device for testing thingsboard rule chain 'n' stuff.
 # Humiditron & Gemini - 2026
 # ----------------------------------------------------------------
