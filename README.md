@@ -3,10 +3,7 @@ humid1 server assets
 
 ## 📄 License
 
-This project is licensed under the MIT License and the Creative Commons License.
-- see the [LICENSE](LICENSE) file for details.
-- see the [LICENSE](ASSETS-LICENSE) file for details.
-
+Licenses: [MIT](LICENSE) (Code) | [CC BY 4.0](LICENSE-ASSETS) (Media Assets)
 
 ## 👥 Contributors
 
