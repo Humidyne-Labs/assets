@@ -1,11 +1,12 @@
 # assets
 humid1 server assets
 
----
-
 ## 📄 License
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License and the Creative Commons License.
+- see the [LICENSE](LICENSE) file for details.
+- see the [LICENSE](ASSETS-LICENSE) file for details.
+
 
 ## 👥 Contributors
 
