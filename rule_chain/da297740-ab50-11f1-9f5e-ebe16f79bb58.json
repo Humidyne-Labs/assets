@@ -1,0 +1,247 @@
+{
+  "entityType" : "RULE_CHAIN",
+  "entity" : {
+    "additionalInfo" : {
+      "description" : "Automatically creates and sends an alert email to 'select' users, if opted-in."
+    },
+    "configuration" : null,
+    "debugMode" : false,
+    "externalId" : null,
+    "firstRuleNodeId" : {
+      "entityType" : "RULE_NODE",
+      "id" : "afdf3700-ab54-11f1-9f5e-ebe16f79bb58"
+    },
+    "id" : {
+      "entityType" : "RULE_CHAIN",
+      "id" : "da297740-ab50-11f1-9f5e-ebe16f79bb58"
+    },
+    "name" : "Compose and Send Email",
+    "root" : false,
+    "type" : "CORE"
+  },
+  "metaData" : {
+    "connections" : [ {
+      "fromIndex" : 0,
+      "toIndex" : 1,
+      "type" : "Success"
+    }, {
+      "fromIndex" : 2,
+      "toIndex" : 3,
+      "type" : "Success"
+    }, {
+      "fromIndex" : 3,
+      "toIndex" : 5,
+      "type" : "True"
+    }, {
+      "fromIndex" : 4,
+      "toIndex" : 0,
+      "type" : "Success"
+    }, {
+      "fromIndex" : 5,
+      "toIndex" : 4,
+      "type" : "Success"
+    } ],
+    "firstNodeIndex" : 2,
+    "nodes" : [ {
+      "additionalInfo" : {
+        "description" : "",
+        "layoutX" : 349,
+        "layoutY" : 399
+      },
+      "configuration" : {
+        "fromTemplate" : "bot@humid1.com",
+        "toTemplate" : "${userEmail}",
+        "ccTemplate" : null,
+        "bccTemplate" : null,
+        "subjectTemplate" : "[${alarmSeverity}] ${alarmType} Alert: ${deviceName}",
+        "mailBodyType" : "true",
+        "bodyTemplate" : "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>HUMID1 Alarm Notification</title>\n</head>\n<body style=\"font-family: 'JetBrains Mono', 'Courier New', Courier, monospace; background-color: #080808; color: #ffffff; margin: 0; padding: 30px 10px; -webkit-font-smoothing: antialiased;\">\n    <table role=\"presentation\" width=\"100%\" border=\"0\" cellspacing=\"0\" cellpadding=\"0\">\n        <tr>\n            <td align=\"center\">\n                <table role=\"presentation\" width=\"100%\" style=\"max-width: 580px; background-color: #111111; border: 2px solid #333333; box-shadow: 6px 6px 0px #222222; padding: 24px; text-align: left;\" border=\"0\" cellspacing=\"0\" cellpadding=\"0\">\n                    <!-- HEADER -->\n                    <tr>\n                        <td style=\"border-bottom: 2px solid #333333; padding-bottom: 14px; margin-bottom: 20px;\">\n                            <h1 style=\"margin: 0; font-size: 16px; font-weight: 800; letter-spacing: 0.05em; color: #ffffff; text-transform: uppercase;\">\n                                HUMID1 :: TELEMETRY_ALARM\n                            </h1>\n                        </td>\n                    </tr>\n                    <!-- CONTENT -->\n                    <tr>\n                        <td style=\"font-size: 13px; line-height: 1.6; color: #dddddd; padding-top: 20px;\">\n                            <p style=\"color: #ff3b30; font-weight: bold; margin-top: 0;\">[SYSTEM_DISPATCH :: ALARM_ALERT]</p>\n                            <p>An active system anomaly has been detected for node <code style=\"background-color: #1a1a1a; padding: 2px 6px; border: 1px solid #333333; color: #ffffff;\">${alarmOriginatorName}</code>.</p>\n                            \n                            <!-- ALARM METADATA -->\n                            <table role=\"presentation\" width=\"100%\" style=\"margin: 20px 0 10px 0; border-collapse: collapse; border: 1px solid #333333; font-size: 12px; background-color: #161616;\">\n                                <tr style=\"border-bottom: 1px solid #262626;\">\n                                    <td style=\"padding: 10px; color: #888888; font-weight: bold; width: 40%;\">ORIGINATOR:</td>\n                                    <td style=\"padding: 10px; color: #ffffff;\">${alarmOriginatorName}</td>\n                                </tr>\n                                <tr style=\"border-bottom: 1px solid #262626;\">\n                                    <td style=\"padding: 10px; color: #888888; font-weight: bold;\">ALARM TYPE:</td>\n                                    <td style=\"padding: 10px; color: #ffffff;\">${alarmTypeUpper}</td>\n                                </tr>\n                                <tr style=\"border-bottom: 1px solid #262626;\">\n                                    <td style=\"padding: 10px; color: #888888; font-weight: bold;\">SEVERITY:</td>\n                                    <td style=\"padding: 10px; color: #ff3b30; font-weight: bold;\">${alarmSeverityUpper}</td>\n                                </tr>\n                                <tr>\n                                    <td style=\"padding: 10px; color: #888888; font-weight: bold;\">STATUS:</td>\n                                    <td style=\"padding: 10px; color: #ffffff;\">${alarmStatus}</td>\n                                </tr>\n                            </table>\n\n                            <!-- TELEMETRY SNAPSHOT -->\n                            <table role=\"presentation\" width=\"100%\" style=\"margin: 0 0 20px 0; border-collapse: collapse; border: 1px solid #333333; font-size: 12px; background-color: #161616;\">\n                                <tr style=\"border-bottom: 1px solid #262626;\">\n                                    <td style=\"padding: 10px; color: #888888; font-weight: bold; width: 40%;\">TEMPERATURE:</td>\n                                    <td style=\"padding: 10px; color: #34c759; font-weight: bold;\">${scaled_temp}</td>\n                                </tr>\n                                <tr style=\"border-bottom: 1px solid #262626;\">\n                                    <td style=\"padding: 10px; color: #888888; font-weight: bold;\">RELATIVE HUMIDITY:</td>\n                                    <td style=\"padding: 10px; color: #007aff; font-weight: bold;\">${rh}%</td>\n                                </tr>\n                                <tr>\n                                    <td style=\"padding: 10px; color: #888888; font-weight: bold;\">BATTERY LEVEL:</td>\n                                    <td style=\"padding: 10px; color: #ffffff;\">${battery}%</td>\n                                </tr>\n                            </table>\n\n                            <p style=\"text-align: center; margin: 30px 0;\">\n                                <a href=\"https://dash.humid1.com\" style=\"display: inline-block; background-color: #ff3b30; color: #ffffff !important; text-decoration: none; padding: 12px 24px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; font-size: 12px; border: 1px solid #ff3b30;\">\n                                    VIEW_DASHBOARD\n                                </a>\n                            </p>\n                            <p style=\"font-size: 11px; color: #777777; margin-bottom: 0;\">Automated alert generated by HUMID1 telemetry engine. Do not reply to this transmission.</p>\n                        </td>\n                    </tr>\n                    <!-- FOOTER -->\n                    <tr>\n                        <td style=\"border-top: 1px solid #262626; margin-top: 30px; padding-top: 16px; font-size: 10px; color: #666666; text-transform: uppercase; letter-spacing: 0.05em;\">\n                            <p style=\"margin: 2px 0;\">© 2026 HUMIDYNE LABS. ALL_RIGHTS_RESERVED.</p>\n                        </td>\n                    </tr>\n                </table>\n            </td>\n        </tr>\n    </table>\n</body>\n</html>"
+      },
+      "configurationVersion" : 0,
+      "createdTime" : 0,
+      "debugSettings" : {
+        "allEnabled" : false,
+        "allEnabledUntil" : 1788942081997,
+        "failuresEnabled" : false
+      },
+      "externalId" : null,
+      "id" : {
+        "entityType" : "RULE_NODE",
+        "id" : "43d99670-ab51-11f1-9f5e-ebe16f79bb58"
+      },
+      "name" : "Create Email",
+      "queueName" : null,
+      "ruleChainId" : null,
+      "singletonMode" : false,
+      "type" : "org.thingsboard.rule.engine.mail.TbMsgToEmailNode"
+    }, {
+      "additionalInfo" : {
+        "description" : "",
+        "layoutX" : 660,
+        "layoutY" : 399
+      },
+      "configuration" : {
+        "useSystemSmtpSettings" : true,
+        "smtpHost" : "localhost",
+        "smtpPort" : 25,
+        "username" : null,
+        "password" : null,
+        "smtpProtocol" : "smtp",
+        "timeout" : 10000,
+        "enableTls" : false,
+        "tlsVersion" : "TLSv1.2",
+        "enableProxy" : false,
+        "proxyHost" : null,
+        "proxyPort" : null,
+        "proxyUser" : null,
+        "proxyPassword" : null
+      },
+      "configurationVersion" : 0,
+      "createdTime" : 0,
+      "debugSettings" : {
+        "allEnabled" : false,
+        "allEnabledUntil" : 1788858949336,
+        "failuresEnabled" : false
+      },
+      "externalId" : null,
+      "id" : {
+        "entityType" : "RULE_NODE",
+        "id" : "43db6b30-ab51-11f1-9f5e-ebe16f79bb58"
+      },
+      "name" : "Send Email to User",
+      "queueName" : null,
+      "ruleChainId" : null,
+      "singletonMode" : false,
+      "type" : "org.thingsboard.rule.engine.mail.TbSendEmailNode"
+    }, {
+      "additionalInfo" : {
+        "description" : "",
+        "layoutX" : 269,
+        "layoutY" : 149
+      },
+      "configuration" : {
+        "tellFailureIfAbsent" : true,
+        "fetchTo" : "METADATA",
+        "clientAttributeNames" : [ ],
+        "sharedAttributeNames" : [ "email_alerts_enabled" ],
+        "serverAttributeNames" : [ ],
+        "latestTsKeyNames" : [ ],
+        "getLatestValueWithTs" : false
+      },
+      "configurationVersion" : 1,
+      "createdTime" : 0,
+      "debugSettings" : {
+        "allEnabled" : false,
+        "allEnabledUntil" : 1788852700155,
+        "failuresEnabled" : false
+      },
+      "externalId" : null,
+      "id" : {
+        "entityType" : "RULE_NODE",
+        "id" : "afdf3700-ab54-11f1-9f5e-ebe16f79bb58"
+      },
+      "name" : "opt-in/out",
+      "queueName" : null,
+      "ruleChainId" : null,
+      "singletonMode" : false,
+      "type" : "org.thingsboard.rule.engine.metadata.TbGetAttributesNode"
+    }, {
+      "additionalInfo" : {
+        "description" : "",
+        "layoutX" : 54,
+        "layoutY" : 280
+      },
+      "configuration" : {
+        "scriptLang" : "JS",
+        "jsScript" : "// Allow email if attribute is true or has not been explicitly set to false\nvar isEnabled = metadata.email_alerts_enabled !== 'false' && metadata.email_alerts_enabled !== false;\nreturn isEnabled;",
+        "tbelScript" : ""
+      },
+      "configurationVersion" : 0,
+      "createdTime" : 0,
+      "debugSettings" : null,
+      "externalId" : null,
+      "id" : {
+        "entityType" : "RULE_NODE",
+        "id" : "afe2b970-ab54-11f1-9f5e-ebe16f79bb58"
+      },
+      "name" : "Check Device OPT Value",
+      "queueName" : null,
+      "ruleChainId" : null,
+      "singletonMode" : false,
+      "type" : "org.thingsboard.rule.engine.filter.TbJsFilterNode"
+    }, {
+      "additionalInfo" : {
+        "description" : "",
+        "layoutX" : 53,
+        "layoutY" : 398
+      },
+      "configuration" : {
+        "scriptLang" : "JS",
+        "jsScript" : "// Helper to validate email syntax\nfunction isValidEmail(val) {\n    if (!val || typeof val !== 'string') return false;\n    var emailPattern = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\n    return emailPattern.test(val.trim());\n}\n\n// Validate customer_title and assign userEmail with fallback\nif (isValidEmail(metadata.customer_title)) {\n    metadata.userEmail = metadata.customer_title.trim().toLowerCase();\n} else {\n    metadata.userEmail = \"support@humid1.com\";\n}\n\n// Delete the unneeded raw string key\ndelete metadata.customer_title;\n\n// Map missing keys and format strings for HTML rendering\nmetadata.alarmOriginatorName = metadata.deviceName || \"Unknown Node\";\nmetadata.alarmTypeUpper = metadata.alarmType ? metadata.alarmType.toUpperCase() : \"ALARM\";\nmetadata.alarmSeverityUpper = metadata.alarmSeverity ? metadata.alarmSeverity.toUpperCase() : \"WARNING\";\nmetadata.alarmStatus = metadata.isExistingAlarm === \"true\" ? \"ACTIVE (UPDATED)\" : \"ACTIVE (NEW)\";\n\n// --- Kelvin Temperature Conversion ---\nvar rawTemp = parseFloat(msg.temp !== undefined ? msg.temp : metadata.temp);\n\nif (!isNaN(rawTemp)) {\n    // Check shared attribute (handles both raw key and ThingsBoard 'ss_' prefix)\n    var unitAttr = metadata.shared_temp_unit || metadata.ss_shared_temp_unit || \"F\";\n    var isCelsius = unitAttr.toString().toUpperCase().trim().indexOf(\"C\") === 0;\n\n    // Convert Kelvin to Celsius or Fahrenheit\n    var convertedTemp = isCelsius \n        ? rawTemp - 273.15 \n        : (rawTemp - 273.15) * 1.8 + 32;\n\n    var unitSymbol = isCelsius ? \"°C\" : \"°F\";\n\n    // Formatted string for HTML email templates (e.g., \"70.2 °F\")\n    metadata.scaled_temp = convertedTemp.toFixed(1) + \" \" + unitSymbol;\n    \n    // Numeric value added to payload\n    msg.scaled_temp = parseFloat(convertedTemp.toFixed(2));\n} else {\n    metadata.scaled_temp = \"N/A\";\n}\n\nreturn {msg: msg, metadata: metadata, msgType: msgType};",
+        "tbelScript" : "return {msg: msg, metadata: metadata, msgType: msgType};"
+      },
+      "configurationVersion" : 0,
+      "createdTime" : 0,
+      "debugSettings" : {
+        "allEnabled" : false,
+        "allEnabledUntil" : 1788857540432,
+        "failuresEnabled" : false
+      },
+      "externalId" : null,
+      "id" : {
+        "entityType" : "RULE_NODE",
+        "id" : "92853b00-ab59-11f1-9f5e-ebe16f79bb58"
+      },
+      "name" : "Assign Name to Email",
+      "queueName" : null,
+      "ruleChainId" : null,
+      "singletonMode" : false,
+      "type" : "org.thingsboard.rule.engine.transform.TbTransformMsgNode"
+    }, {
+      "additionalInfo" : {
+        "description" : "",
+        "layoutX" : 345,
+        "layoutY" : 279
+      },
+      "configuration" : {
+        "detailsList" : [ "TITLE" ],
+        "fetchTo" : "METADATA"
+      },
+      "configurationVersion" : 1,
+      "createdTime" : 0,
+      "debugSettings" : {
+        "allEnabled" : false,
+        "allEnabledUntil" : 1788856893352,
+        "failuresEnabled" : false
+      },
+      "externalId" : null,
+      "id" : {
+        "entityType" : "RULE_NODE",
+        "id" : "d386fa30-ab5e-11f1-9f5e-ebe16f79bb58"
+      },
+      "name" : "Get Email Adress",
+      "queueName" : null,
+      "ruleChainId" : null,
+      "singletonMode" : false,
+      "type" : "org.thingsboard.rule.engine.metadata.TbGetCustomerDetailsNode"
+    } ],
+    "ruleChainConnections" : null
+  },
+  "relations" : [ {
+    "additionalInfo" : null,
+    "from" : {
+      "entityType" : "RULE_CHAIN",
+      "id" : "92da2e30-a9ab-11f1-9663-1fc19e23cbce"
+    },
+    "to" : {
+      "entityType" : "RULE_CHAIN",
+      "id" : "da297740-ab50-11f1-9f5e-ebe16f79bb58"
+    },
+    "type" : "Uses",
+    "typeGroup" : "COMMON",
+    "version" : 2944
+  } ],
+  "attributes" : {
+    "SERVER_SCOPE" : [ ]
+  }
+}

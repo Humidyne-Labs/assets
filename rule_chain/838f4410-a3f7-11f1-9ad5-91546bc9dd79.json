@@ -1,0 +1,109 @@
+{
+  "entityType" : "RULE_CHAIN",
+  "entity" : {
+    "additionalInfo" : {
+      "description" : "Automatically assigns default shared attributes on device registration."
+    },
+    "configuration" : null,
+    "debugMode" : false,
+    "externalId" : null,
+    "firstRuleNodeId" : {
+      "entityType" : "RULE_NODE",
+      "id" : "83ba72c0-a3f7-11f1-9ad5-91546bc9dd79"
+    },
+    "id" : {
+      "entityType" : "RULE_CHAIN",
+      "id" : "838f4410-a3f7-11f1-9ad5-91546bc9dd79"
+    },
+    "name" : "Device Setup Chain",
+    "root" : false,
+    "type" : "CORE"
+  },
+  "metaData" : {
+    "connections" : [ {
+      "fromIndex" : 0,
+      "toIndex" : 1,
+      "type" : "Success"
+    } ],
+    "firstNodeIndex" : 0,
+    "nodes" : [ {
+      "additionalInfo" : {
+        "description" : null,
+        "layoutX" : 353,
+        "layoutY" : 149
+      },
+      "configuration" : {
+        "scriptLang" : "JS",
+        "jsScript" : "var newMsg = {\n  \"email_alerts_enabled\" : true,\n  \"auto_update_enabled\" : true,\n  \"device_theme\" : \"LIGHT\",\n  \"manual_ota_trigger\" : false,\n  \"sleep_interval_min\": 1,\n  \"sleep_interval_sec\" : 60,\n  \"sound_enabled\" : false,\n  \"temp_unit\" : \"F\",\n  \"alarm_thresholds\": {\n     \"rhLowCritical\": 62,\n     \"rhLowWarning\": 65,\n     \"rhHighWarning\": 73,\n     \"rhHighCritical\": 76,\n     \"tempLowCritical\": 287.59, // (58°F): 287.59 K\n     \"tempLowWarning\": 290.93, // (64°F): 290.93 K\n     \"tempHighWarning\": 295.37, // (72°F): 295.37 K\n     \"tempHighCritical\": 297.04, // (75°F): 297.04 K\n     \"batteryLowCritical\": 15,\n     \"batteryLowWarning\": 25,\n     \"rhHist\": 1.5,\n     \"tempHist\": 0.56, // (1°F delta): 0.56 K\n     \"battHist\": 2\n    }\n};\n\nreturn {msg: newMsg, metadata: metadata, msgType: \"POST_ATTRIBUTES_REQUEST\"};",
+        "tbelScript" : ""
+      },
+      "configurationVersion" : 0,
+      "createdTime" : 0,
+      "debugSettings" : {
+        "allEnabled" : false,
+        "allEnabledUntil" : 1788044665364,
+        "failuresEnabled" : false
+      },
+      "externalId" : null,
+      "id" : {
+        "entityType" : "RULE_NODE",
+        "id" : "83ba72c0-a3f7-11f1-9ad5-91546bc9dd79"
+      },
+      "name" : "Prepare Default Attributes",
+      "queueName" : null,
+      "ruleChainId" : null,
+      "singletonMode" : false,
+      "type" : "org.thingsboard.rule.engine.transform.TbTransformMsgNode"
+    }, {
+      "additionalInfo" : {
+        "description" : null,
+        "layoutX" : 673,
+        "layoutY" : 151
+      },
+      "configuration" : {
+        "processingSettings" : {
+          "type" : "ON_EVERY_MESSAGE"
+        },
+        "scope" : "SHARED_SCOPE",
+        "notifyDevice" : true,
+        "sendAttributesUpdatedNotification" : true,
+        "updateAttributesOnlyOnValueChange" : true
+      },
+      "configurationVersion" : 3,
+      "createdTime" : 0,
+      "debugSettings" : {
+        "allEnabled" : false,
+        "allEnabledUntil" : 1788044665364,
+        "failuresEnabled" : false
+      },
+      "externalId" : null,
+      "id" : {
+        "entityType" : "RULE_NODE",
+        "id" : "83bb8430-a3f7-11f1-9ad5-91546bc9dd79"
+      },
+      "name" : "Save Shared Attributes",
+      "queueName" : null,
+      "ruleChainId" : null,
+      "singletonMode" : false,
+      "type" : "org.thingsboard.rule.engine.telemetry.TbMsgAttributesNode"
+    } ],
+    "ruleChainConnections" : null
+  },
+  "relations" : [ {
+    "additionalInfo" : null,
+    "from" : {
+      "entityType" : "RULE_CHAIN",
+      "id" : "345eed50-a109-11f1-b530-9b9631e0c365"
+    },
+    "to" : {
+      "entityType" : "RULE_CHAIN",
+      "id" : "838f4410-a3f7-11f1-9ad5-91546bc9dd79"
+    },
+    "type" : "Uses",
+    "typeGroup" : "COMMON",
+    "version" : 1827
+  } ],
+  "attributes" : {
+    "SERVER_SCOPE" : [ ]
+  }
+}
