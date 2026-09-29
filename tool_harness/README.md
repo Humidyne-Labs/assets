@@ -110,8 +110,15 @@ Default BSP Build Target: `C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\examples\
 To auto-generate unit-level reference examples for all headers in `esp32-s3_bsp/components/esp32-s3_bsp/include/bsp` (with matching C implementation context, model selection, and token usage tracking):
 
 ```bash
+# Setup ESP-IDF environment
+C:\esp\v6.1\esp-idf\export.bat
+idf.py --version
+
 # Set environment API key
 set GEMINI_API_KEY=your_api_key_here
+# OR for Windows
+set "GEMINI_API_KEY=your_api_key_here"
+python -c "import os; print('Key set:', bool(os.getenv('GEMINI_API_KEY')))"
 
 # 1. List available Gemini models
 python tools/generate_bsp_examples.py --list-models

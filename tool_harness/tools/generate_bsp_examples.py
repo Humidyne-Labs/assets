@@ -12,7 +12,15 @@ import re
 import sys
 import argparse
 import subprocess
+import warnings
 from pathlib import Path
+from functools import partial
+
+# Suppress SDK warnings (e.g. AFC deprecation warnings from google-genai)
+warnings.filterwarnings("ignore", category=UserWarning)
+
+# Override print to ensure immediate unbuffered output to stdout
+print = partial(print, flush=True)
 
 # Google SDK Imports
 GENAI_AVAILABLE = False
@@ -40,6 +48,7 @@ Rules you must strictly follow:
 3. Every API call returning an error code (e.g., esp_err_t) MUST be wrapped in ESP_ERROR_CHECK() or checked explicitly.
 4. Keep the example focused solely on the peripheral declared in the header. Keep it under 150 lines.
 5. Provide ONLY valid C code inside code fences.
+6. Always include BSP headers using the 'bsp/' subdirectory prefix (e.g., #include "bsp/bsp.h", #include "bsp/pinout.h", #include "bsp/bsp_display.h"). NEVER use `#include "bsp.h"` without the `bsp/` prefix.
 """
 
 INITIAL_PROMPT_TEMPLATE = """\
@@ -171,7 +180,7 @@ def call_gemini_with_retry(client, model: str, contents, config, max_retries: in
 
     clean_model = model.replace("models/", "")
     fallback_chain = [model]
-    for alt in ("gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash"):
+    for alt in ("gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash", "gemini-flash-latest"):
         if alt not in fallback_chain and alt != clean_model:
             fallback_chain.append(alt)
 
@@ -190,19 +199,18 @@ def call_gemini_with_retry(client, model: str, contents, config, max_retries: in
                 is_transient = any(k in err_str for k in ("503", "unavailable", "429", "rate", "overloaded", "resource_exhausted", "quota"))
                 is_not_found = any(k in err_str for k in ("404", "not_found", "no longer available", "invalid model"))
 
-                if verbose:
-                    import traceback
-                    print(f" [DEBUG API EXCEPTION] ({target_model} attempt {attempt}): {exc}")
-                    traceback.print_exc()
-
                 if is_transient and attempt < max_retries:
                     wait_sec = attempt * 15
-                    print(f" [RATE LIMIT / BUSY] Model '{target_model}' rate-limited (429/503). Waiting {wait_sec}s (Attempt {attempt}/{max_retries})...")
+                    print(f" [503/429 BUSY] Model '{target_model}' rate-limited or busy. Retrying in {wait_sec}s (Attempt {attempt}/{max_retries})...")
                     time.sleep(wait_sec)
                 elif (is_transient or is_not_found) and target_model != fallback_chain[-1]:
-                    print(f" [API WARN] Model '{target_model}' failed ({'Not Found' if is_not_found else 'Rate Limited/Busy'}). Trying next fallback model...")
+                    print(f" [API FALLBACK] Model '{target_model}' failed ({'Not Found' if is_not_found else 'Busy'}). Switching to fallback model...")
                     break
                 else:
+                    if verbose:
+                        import traceback
+                        print(f" [FATAL API ERROR] ({target_model} attempt {attempt}): {exc}")
+                        traceback.print_exc()
                     raise exc
     raise RuntimeError(f"Failed to generate content with model {model} and all fallback options.")
 
@@ -283,8 +291,8 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        default="gemini-2.5-flash",
-        help="Gemini model ID to use (default: gemini-2.5-flash)",
+        default="gemini-3.8-flash",
+        help="Gemini model ID to use (default: gemini-3.8-flash)",
     )
     parser.add_argument(
         "--api-key",
@@ -391,6 +399,7 @@ def main():
                     source_section=source_section,
                 )
 
+                print(f" [API] Sending initial prompt to Gemini ({args.model})...")
                 response = call_gemini_with_retry(
                     client=client,
                     model=args.model,
@@ -417,6 +426,7 @@ def main():
                 # Phase 2: Compiler Verification & Self-Correction Loop
                 for attempt in range(1, args.max_retries + 1):
                     print(f" -> Compilation Attempt {attempt}/{args.max_retries}...")
+                    print(f" [BUILD] Executing '{args.build_cmd}' (this typically takes 20-60s)...")
 
                     args.test_runner_file.parent.mkdir(parents=True, exist_ok=True)
                     args.test_runner_file.write_text(current_code, encoding="utf-8")
@@ -508,4 +518,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n\n[CANCELLED] Script execution stopped by user.")
+        sys.exit(0)
