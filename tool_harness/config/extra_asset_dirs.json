@@ -1,0 +1,12 @@
+{
+  "directories": [
+					  "C:/Users/Matt/Documents/GitHub/assets/docs/internal/bsp_revision-docs",
+					  "C:/Users/Matt/Documents/GitHub/assets/docs/internal/firmware-docs",
+					  "C:/Users/Matt/Documents/GitHub/assets/docs/internal/hardware-docs/ws_esp32-s3_dev_board",
+					  "C:/Users/Matt/Documents/GitHub/assets/docs/internal/hardware_device-json",
+					  "C:/Users/Matt/Documents/GitHub/assets/docs/internal/hardware_device_emu-src-pyhton",
+					  "C:/Users/Matt/Documents/GitHub/assets/docs/internal/idf-examples-docs",
+					  "C:/Users/Matt/Documents/GitHub/assets/docs/internal/thingsbaord_rule_chain-json",
+					  "C:/Users/Matt/Documents/GitHub/assets/docs/internal/web_dashboard-docs"
+				  ]
+}

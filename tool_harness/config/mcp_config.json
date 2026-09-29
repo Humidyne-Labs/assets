@@ -1,0 +1,76 @@
+{
+  "mcpServers": {
+    "esp32-s3-bsp": {
+      "command": "python",
+      "args": [
+        "c:/Users/Matt/Documents/GitHub/assets/tool_harness/mcp_servers/bsp_mcp_server.py"
+      ],
+      "env": {
+        "BSP_ROOT": "C:\\Users\\Matt\\Documents\\GitHub\\esp32-s3_bsp"
+      }
+    },
+    "lvgl-context": {
+      "command": "python",
+      "args": [
+        "c:/Users/Matt/Documents/GitHub/assets/tool_harness/mcp_servers/lvgl_mcp_server.py"
+      ],
+      "env": {
+        "LVGL_ROOT": "c:/Users/Matt/Documents/GitHub/assets/tool_harness/lvgl-9.6.0"
+      }
+    },
+    "lvgl-virtualization": {
+      "command": "python",
+      "args": [
+        "c:/Users/Matt/Documents/GitHub/assets/tool_harness/mcp_servers/lvgl_virt_mcp_server.py"
+      ],
+      "env": {
+        "LVGL_ROOT": "c:/Users/Matt/Documents/GitHub/assets/tool_harness/lvgl-9.6.0"
+      }
+    },
+    "lvgl-diff": {
+      "command": "python",
+      "args": [
+        "c:/Users/Matt/Documents/GitHub/assets/tool_harness/mcp_servers/lvgl_diff_mcp_server.py"
+      ],
+      "env": {
+        "LVGL_ROOT": "c:/Users/Matt/Documents/GitHub/assets/tool_harness/lvgl-9.6.0"
+      }
+    },
+    "project-docs": {
+      "command": "python",
+      "args": [
+        "c:/Users/Matt/Documents/GitHub/assets/tool_harness/mcp_servers/docs_mcp_server.py"
+      ],
+      "env": {
+        "DOCS_ROOT": "C:\\Users\\Matt\\Documents\\GitHub\\esp32-s3_bsp\\docs"
+      }
+    },
+    "docgen": {
+      "command": "python",
+      "args": [
+        "c:/Users/Matt/Documents/GitHub/assets/tool_harness/mcp_servers/docgen_mcp_server.py"
+      ],
+      "env": {
+        "BSP_ROOT": "C:\\Users\\Matt\\Documents\\GitHub\\esp32-s3_bsp"
+      }
+    },
+    "firmware-analyzer": {
+      "command": "python",
+      "args": [
+        "c:/Users/Matt/Documents/GitHub/assets/tool_harness/mcp_servers/firmware_analyzer_mcp.py"
+      ],
+      "env": {
+        "BSP_ROOT": "C:\\Users\\Matt\\Documents\\GitHub\\esp32-s3_bsp"
+      }
+    },
+    "idf-build": {
+      "command": "python",
+      "args": [
+        "c:/Users/Matt/Documents/GitHub/assets/tool_harness/mcp_servers/idf_build_mcp_server.py"
+      ],
+      "env": {
+        "BSP_ROOT": "C:\\Users\\Matt\\Documents\\GitHub\\esp32-s3_bsp"
+      }
+    }
+  }
+}

@@ -1,0 +1,7 @@
+# Ignore temporary build artifacts
+_build/
+*.exe
+*.obj
+*.png
+*.rsp
+*.bat

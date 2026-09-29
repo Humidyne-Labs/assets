@@ -1,0 +1,407 @@
+#!/usr/bin/env python3
+"""
+Automated BSP Example Generator & Compiler Validation Pipeline.
+Iterates over ESP32-S3 BSP header files, prompts Gemini via Google's official GenAI SDK (from google import genai / from google.cloud)
+for isolated reference examples, and iterates against compiler feedback until clean builds are achieved.
+
+Includes model listing (--list-models) and token usage statistics tracking (--show-usage).
+"""
+
+import os
+import re
+import sys
+import argparse
+import subprocess
+from pathlib import Path
+
+# Google SDK Imports
+GENAI_AVAILABLE = False
+VERTEX_AVAILABLE = False
+
+try:
+    from google import genai
+    from google.genai import types
+    GENAI_AVAILABLE = True
+except ImportError:
+    pass
+
+try:
+    from google.cloud import aiplatform
+    VERTEX_AVAILABLE = True
+except ImportError:
+    pass
+
+
+SYSTEM_INSTRUCTION = """\
+You are an expert embedded firmware engineer writing unit-level hardware examples for ESP32-S3 BSP.
+Rules you must strictly follow:
+1. Use ONLY function prototypes, macros, types, and enums declared in the provided header file and pinout.h.
+2. NEVER guess, invent, or extrapolate peripheral APIs.
+3. Every API call returning an error code (e.g., esp_err_t) MUST be wrapped in ESP_ERROR_CHECK() or checked explicitly.
+4. Keep the example focused solely on the peripheral declared in the header. Keep it under 150 lines.
+5. Provide ONLY valid C code inside code fences.
+"""
+
+INITIAL_PROMPT_TEMPLATE = """\
+Generate a standalone reference example for the following BSP peripheral header:
+
+Header File: {header_name}
+```c
+{header_content}
+```
+
+{source_section}
+
+Requirements:
+- Target function: app_main(void)
+- Perform necessary system/power initialization before peripheral access.
+- Execute one clear, observable peripheral action.
+- Log events cleanly via ESP_LOGI or printf.
+- Terminate or idle safely (e.g. vTaskDelete(NULL) or vTaskDelay).
+"""
+
+FIX_PROMPT_TEMPLATE = """\
+The code you generated failed to compile.
+
+Compiler Diagnostic Output:
+```
+{compiler_errors}
+```
+
+Original Broken Source Code:
+```c
+{broken_code}
+```
+
+Header File Reference:
+```c
+{header_content}
+```
+
+Fix the errors. Ensure all types, parameters, and signatures strictly match the header.
+Return the entire updated, compilable C source code inside a ```c block.
+"""
+
+
+class TokenUsageTracker:
+    """Tracks cumulative prompt, candidate (response), and total token counts across API requests."""
+    def __init__(self):
+        self.requests_count = 0
+        self.total_prompt_tokens = 0
+        self.total_candidate_tokens = 0
+        self.total_tokens = 0
+
+    def record_usage(self, usage_metadata):
+        if not usage_metadata:
+            return
+        self.requests_count += 1
+        prompt = getattr(usage_metadata, "prompt_token_count", 0) or 0
+        candidate = getattr(usage_metadata, "candidates_token_count", 0) or 0
+        total = getattr(usage_metadata, "total_token_count", 0) or (prompt + candidate)
+
+        self.total_prompt_tokens += prompt
+        self.total_candidate_tokens += candidate
+        self.total_tokens += total
+        return prompt, candidate, total
+
+    def print_summary(self):
+        print("\n==================================================")
+        print("  GEMINI API TOKEN USAGE SUMMARY REPORT")
+        print("==================================================")
+        print(f" Total API Requests Executed : {self.requests_count}")
+        print(f" Total Prompt Tokens         : {self.total_prompt_tokens:,}")
+        print(f" Total Candidate Tokens      : {self.total_candidate_tokens:,}")
+        print(f" Combined Total Tokens Used  : {self.total_tokens:,}")
+        print("==================================================")
+
+
+def extract_c_code(response_text: str) -> str:
+    """Extracts raw C code from markdown code fences."""
+    match = re.search(r"```(?:c|cpp)?\s*(.*?)\s*```", response_text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return response_text.strip()
+
+
+def compile_project(build_cmd: list[str], working_dir: Path) -> tuple[bool, str]:
+    """Runs the build system command and captures diagnostics."""
+    try:
+        proc = subprocess.run(
+            build_cmd,
+            cwd=working_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=180,
+            check=False,
+        )
+        return proc.returncode == 0, proc.stdout
+    except subprocess.TimeoutExpired:
+        return False, "Build timed out after 180 seconds."
+    except Exception as exc:
+        return False, f"Failed to execute build command: {exc}"
+
+
+def filter_compiler_errors(build_output: str, max_lines: int = 40) -> str:
+    """Isolates compiler error lines to keep context tight for the LLM."""
+    lines = build_output.splitlines()
+    error_lines = [line for line in lines if "error:" in line.lower() or "undefined reference" in line.lower()]
+    if not error_lines:
+        return "\n".join(lines[-max_lines:])
+    return "\n".join(error_lines[:max_lines])
+
+
+def initialize_genai_client(api_key: str = "", use_vertex: bool = False, project: str = "", location: str = "us-central1"):
+    """Initializes and returns the official Google GenAI Client with API key or Vertex AI mode."""
+    if not GENAI_AVAILABLE:
+        sys.exit("Error: 'google-genai' SDK is not installed. Install via: pip install google-genai")
+
+    if use_vertex:
+        project_id = project or os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJECT")
+        if not project_id:
+            sys.exit("Error: Vertex AI mode requires a Google Cloud project ID (pass --project or set GOOGLE_CLOUD_PROJECT env var).")
+        print(f"[AUTH] Initializing Google GenAI Client (Vertex AI mode) - Project: {project_id}, Location: {location}")
+        return genai.Client(vertexai=True, project=project_id, location=location)
+    else:
+        key = api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        if not key:
+            sys.exit("Error: GEMINI_API_KEY environment variable is not set. Set GEMINI_API_KEY or pass --api-key.")
+        print("[AUTH] Initializing Google GenAI Client (Developer API mode)")
+        return genai.Client(api_key=key)
+
+
+def list_available_models(client):
+    """Queries and displays available Gemini models from the Google API."""
+    print("\n==================================================")
+    print("  AVAILABLE GEMINI MODELS")
+    print("==================================================")
+    try:
+        models = list(client.models.list())
+        for m in models:
+            name = getattr(m, "name", str(m))
+            disp_name = getattr(m, "display_name", "")
+            print(f" - {name:<35} | {disp_name}")
+    except Exception as exc:
+        print(f"Error querying model list: {exc}")
+    print("==================================================\n")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Batch generate and compile BSP examples using Google GenAI SDK.")
+    parser.add_argument(
+        "--headers-dir",
+        type=Path,
+        default=Path(r"C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\components\esp32-s3_bsp\include\bsp"),
+        help="Directory containing BSP .h files",
+    )
+    parser.add_argument(
+        "--sources-dir",
+        type=Path,
+        default=Path(r"C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\components\esp32-s3_bsp\src"),
+        help="Optional directory containing corresponding BSP .c implementation files",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path(r"C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\examples"),
+        help="Destination directory for verified examples",
+    )
+    parser.add_argument(
+        "--test-runner-file",
+        type=Path,
+        default=Path(r"C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\examples\Peripherals_Test_Suite\main\main.c"),
+        help="Source file overwritten temporarily during build validation",
+    )
+    parser.add_argument(
+        "--build-cmd",
+        type=str,
+        default="idf.py build",
+        help="Build command to execute for compilation verification",
+    )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=3,
+        help="Maximum self-correction compile attempts per header",
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="gemini-2.5-flash",
+        help="Gemini model ID to use (default: gemini-2.5-flash)",
+    )
+    parser.add_argument(
+        "--api-key",
+        type=str,
+        default="",
+        help="Google Gemini API key (or set GEMINI_API_KEY env var)",
+    )
+    parser.add_argument(
+        "--use-vertex",
+        action="store_true",
+        help="Use Google Cloud Vertex AI mode instead of Developer API",
+    )
+    parser.add_argument(
+        "--project",
+        type=str,
+        default="",
+        help="Google Cloud Project ID (required for --use-vertex)",
+    )
+    parser.add_argument(
+        "--location",
+        type=str,
+        default="us-central1",
+        help="Google Cloud Vertex AI region (default: us-central1)",
+    )
+    parser.add_argument(
+        "--list-models",
+        action="store_true",
+        help="List all available Gemini models and exit",
+    )
+    parser.add_argument(
+        "--show-usage",
+        action="store_true",
+        help="Display detailed token usage statistics after generation",
+    )
+    args = parser.parse_args()
+
+    client = initialize_genai_client(
+        api_key=args.api_key,
+        use_vertex=args.use_vertex,
+        project=args.project,
+        location=args.location,
+    )
+
+    if args.list_models:
+        list_available_models(client)
+        return
+
+    if not args.headers_dir.is_dir():
+        sys.exit(f"Error: Headers directory '{args.headers_dir}' not found.")
+
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    build_cmd_list = args.build_cmd.split()
+    usage_tracker = TokenUsageTracker()
+
+    # Backup existing test-runner file if present
+    backup_file = None
+    if args.test_runner_file.exists():
+        backup_file = args.test_runner_file.with_suffix(".c.bak")
+        args.test_runner_file.rename(backup_file)
+        print(f"[SETUP] Backed up original {args.test_runner_file} to {backup_file}")
+
+    try:
+        headers = sorted(args.headers_dir.glob("*.h"))
+        if not headers:
+            print(f"No .h files found in {args.headers_dir}")
+            return
+
+        print(f"[START] Processing {len(headers)} BSP headers from {args.headers_dir}...")
+
+        for header_path in headers:
+            header_name = header_path.name
+            print(f"\n==================================================")
+            print(f"Processing Subsystem: {header_name}")
+            print(f"==================================================")
+
+            header_content = header_path.read_text(encoding="utf-8")
+
+            # Check for matching implementation source file
+            source_section = ""
+            if args.sources_dir and args.sources_dir.exists():
+                candidate_src = args.sources_dir / f"{header_path.stem}.c"
+                if candidate_src.exists():
+                    src_content = candidate_src.read_text(encoding="utf-8", errors="ignore")
+                    source_section = f"Matching Implementation Source File ({candidate_src.name}):\n```c\n{src_content}\n```\n"
+                    print(f" [INFO] Included matching implementation source: {candidate_src.name}")
+
+            # Phase 1: Initial Generation
+            prompt = INITIAL_PROMPT_TEMPLATE.format(
+                header_name=header_name,
+                header_content=header_content,
+                source_section=source_section,
+            )
+
+            response = client.models.generate_content(
+                model=args.model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM_INSTRUCTION,
+                    temperature=0.2,
+                ),
+            )
+
+            usage = usage_tracker.record_usage(getattr(response, "usage_metadata", None))
+            if usage and args.show_usage:
+                print(f" [TOKENS] Initial Turn: Prompt={usage[0]}, Candidate={usage[1]}, Total={usage[2]}")
+
+            current_code = extract_c_code(response.text)
+            success = False
+
+            # Phase 2: Compiler Verification & Self-Correction Loop
+            for attempt in range(1, args.max_retries + 1):
+                print(f" -> Compilation Attempt {attempt}/{args.max_retries}...")
+
+                args.test_runner_file.parent.mkdir(parents=True, exist_ok=True)
+                args.test_runner_file.write_text(current_code, encoding="utf-8")
+
+                compiled_ok, build_log = compile_project(build_cmd_list, args.test_runner_file.parent.parent)
+
+                if compiled_ok:
+                    print(f" [PASS] Clean build succeeded on attempt {attempt}!")
+                    success = True
+                    break
+
+                print(f" [FAIL] Build failed. Extracting diagnostics...")
+                diagnostics = filter_compiler_errors(build_log)
+                print(f"Diagnostics preview:\n{diagnostics[:300]}...\n")
+
+                if attempt == args.max_retries:
+                    print(f" [ABORT] Exceeded max retries for {header_name}.")
+                    break
+
+                fix_prompt = FIX_PROMPT_TEMPLATE.format(
+                    compiler_errors=diagnostics,
+                    broken_code=current_code,
+                    header_content=header_content,
+                )
+
+                fix_response = client.models.generate_content(
+                    model=args.model,
+                    contents=fix_prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=SYSTEM_INSTRUCTION,
+                        temperature=0.1,
+                    ),
+                )
+                fix_usage = usage_tracker.record_usage(getattr(fix_response, "usage_metadata", None))
+                if fix_usage and args.show_usage:
+                    print(f" [TOKENS] Retry {attempt}: Prompt={fix_usage[0]}, Candidate={fix_usage[1]}, Total={fix_usage[2]}")
+
+                current_code = extract_c_code(fix_response.text)
+
+            # Phase 3: Save generated example
+            target_filename = f"{header_path.stem}_example.c"
+            destination = args.output_dir / target_filename
+
+            if success:
+                destination.write_text(current_code, encoding="utf-8")
+                print(f" [SAVED] Verified example saved to: {destination}")
+            else:
+                failed_destination = args.output_dir / f"{header_path.stem}_failed.c"
+                failed_destination.write_text(current_code, encoding="utf-8")
+                print(f" [FAILED] Saved unverified candidate to: {failed_destination}")
+
+    finally:
+        if backup_file and backup_file.exists():
+            if args.test_runner_file.exists():
+                args.test_runner_file.unlink()
+            backup_file.rename(args.test_runner_file)
+            print(f"\n[CLEANUP] Restored original {args.test_runner_file}")
+
+        if args.show_usage:
+            usage_tracker.print_summary()
+
+
+if __name__ == "__main__":
+    main()
