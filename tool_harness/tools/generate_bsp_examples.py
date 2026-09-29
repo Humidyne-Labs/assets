@@ -61,6 +61,8 @@ Header File: {header_name}
 
 {source_section}
 
+{ref_example_section}
+
 Requirements:
 - Target function: app_main(void)
 - Perform necessary system/power initialization before peripheral access.
@@ -180,7 +182,7 @@ def call_gemini_with_retry(client, model: str, contents, config, max_retries: in
 
     clean_model = model.replace("models/", "")
     fallback_chain = [model]
-    for alt in ("gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash", "gemini-flash-latest"):
+    for alt in ("gemini-3.6-flash", "gemini-2.5-flash", "gemini-3.8-flash", "gemini-3.7-flash", "gemini-flash-latest"):
         if alt not in fallback_chain and alt != clean_model:
             fallback_chain.append(alt)
 
@@ -250,6 +252,84 @@ def list_available_models(client):
     print("==================================================\n")
 
 
+def setup_example_project_scaffolding(proj_dir: Path, header_stem: str, template_dir: Path = None):
+    """Creates standard standalone ESP-IDF project structure inside proj_dir."""
+    main_dir = proj_dir / "main"
+    main_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. Root CMakeLists.txt
+    root_cmakelists = proj_dir / "CMakeLists.txt"
+    if not root_cmakelists.exists():
+        root_cmakelists.write_text(
+            f'cmake_minimum_required(VERSION 3.16)\n\n'
+            f'# Set custom components directory to locate local BSP component\n'
+            f'set(EXTRA_COMPONENT_DIRS "../../components")\n\n'
+            f'include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)\n'
+            f'project({header_stem}_example)\n',
+            encoding="utf-8",
+        )
+
+    # 2. main/CMakeLists.txt
+    main_cmakelists = main_dir / "CMakeLists.txt"
+    if not main_cmakelists.exists():
+        main_cmakelists.write_text(
+            'idf_component_register(\n'
+            '    SRCS "main.c"\n'
+            '    INCLUDE_DIRS "."\n'
+            '    REQUIRES\n'
+            '        esp32-s3_bsp\n'
+            '        esp_driver_gpio\n'
+            '        esp_timer\n'
+            '        freertos\n'
+            '        log\n'
+            '        nvs_flash\n'
+            '        lvgl\n'
+            ')\n',
+            encoding="utf-8",
+        )
+
+    # 3. main/idf_component.yml
+    component_yml = main_dir / "idf_component.yml"
+    if not component_yml.exists():
+        component_yml.write_text(
+            'dependencies:\n'
+            '  idf: ">=5.1"\n'
+            '  lvgl/lvgl: "==9.6.0"\n'
+            '  espressif/esp_codec_dev: "^1.6.2"\n'
+            '  espressif/esp_mmap_assets: "^2.0.1"\n'
+            '  espressif/esp_lv_fs: "^1.0.1"\n'
+            '  espressif/mqtt: "^1.0.0"\n'
+            '  espressif/network_provisioning: "^1.2.5"\n'
+            '  espressif/cjson: "^1.7.19"\n'
+            '  esp32-s3_bsp:\n'
+            '    path: "../../../components/esp32-s3_bsp"\n',
+            encoding="utf-8",
+        )
+
+    # 4. Copy sdkconfig.defaults, partitions.csv, and sdkconfig if available
+    if template_dir and template_dir.exists():
+        import shutil
+        for fname in ("partitions.csv", "sdkconfig.defaults", "sdkconfig"):
+            src_file = template_dir / fname
+            target_file = proj_dir / fname
+            if src_file.exists():
+                shutil.copy2(src_file, target_file)
+
+    # 5. Root .gitignore for each example project
+    gitignore_file = proj_dir / ".gitignore"
+    if not gitignore_file.exists():
+        gitignore_file.write_text(
+            '# ESP-IDF Generated Artifacts & Dependencies\n'
+            'build/\n'
+            'managed_components/\n'
+            'dependencies.lock\n'
+            'sdkconfig\n'
+            'sdkconfig.old\n'
+            '*.bak\n',
+            encoding="utf-8",
+        )
+
+
 def main():
     parser = argparse.ArgumentParser(description="Batch generate and compile BSP examples using Google GenAI SDK.")
     parser.add_argument(
@@ -268,13 +348,13 @@ def main():
         "--output-dir",
         type=Path,
         default=Path(r"C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\examples"),
-        help="Destination directory for verified examples",
+        help="Destination directory for verified example projects",
     )
     parser.add_argument(
         "--test-runner-file",
         type=Path,
         default=Path(r"C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\examples\Peripherals_Test_Suite\main\main.c"),
-        help="Source file overwritten temporarily during build validation",
+        help="Reference project template directory (e.g. Peripherals_Test_Suite)",
     )
     parser.add_argument(
         "--build-cmd",
@@ -291,8 +371,8 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        default="gemini-3.8-flash",
-        help="Gemini model ID to use (default: gemini-3.8-flash)",
+        default="gemini-3.6-flash",
+        help="Gemini model ID to use (default: gemini-3.6-flash)",
     )
     parser.add_argument(
         "--api-key",
@@ -339,6 +419,11 @@ def main():
         action="store_true",
         help="Enable verbose output (shows full compiler build logs, generated code, and API tracebacks)",
     )
+    parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="Skip generation if an example project directory already exists for a header",
+    )
     args = parser.parse_args()
 
     client = initialize_genai_client(
@@ -359,13 +444,6 @@ def main():
     build_cmd_list = args.build_cmd.split()
     usage_tracker = TokenUsageTracker()
 
-    # Backup existing test-runner file if present
-    backup_file = None
-    if args.test_runner_file.exists():
-        backup_file = args.test_runner_file.with_suffix(".c.bak")
-        args.test_runner_file.rename(backup_file)
-        print(f"[SETUP] Backed up original {args.test_runner_file} to {backup_file}")
-
     try:
         headers = sorted(args.headers_dir.glob("*.h"))
         if not headers:
@@ -374,11 +452,25 @@ def main():
 
         print(f"[START] Processing {len(headers)} BSP headers from {args.headers_dir}...")
 
+        template_dir = args.test_runner_file.parent.parent if args.test_runner_file and args.test_runner_file.parent.parent.exists() else None
+
         for header_path in headers:
             header_name = header_path.name
+            header_stem = header_path.stem
+            proj_name = f"{header_stem}_example"
+            proj_dir = args.output_dir / proj_name
+
             print(f"\n==================================================")
-            print(f"Processing Subsystem: {header_name}")
+            print(f"Processing Subsystem: {header_name} -> Project: {proj_name}")
             print(f"==================================================")
+
+            # Set up standalone project scaffolding inside output-dir/proj_name/
+            target_main_c = proj_dir / "main" / "main.c"
+            if args.skip_existing and target_main_c.exists() and target_main_c.stat().st_size > 0:
+                print(f" [SKIP] Project '{proj_name}' already exists ({target_main_c}). Skipping...")
+                continue
+
+            setup_example_project_scaffolding(proj_dir, header_stem, template_dir=template_dir)
 
             header_content = header_path.read_text(encoding="utf-8")
 
@@ -389,7 +481,12 @@ def main():
                 if candidate_src.exists():
                     src_content = candidate_src.read_text(encoding="utf-8", errors="ignore")
                     source_section = f"Matching Implementation Source File ({candidate_src.name}):\n```c\n{src_content}\n```\n"
-                    print(f" [INFO] Included matching implementation source: {candidate_src.name}")
+            # Ingest Reference Suite Example Code (main.c / main.cpp) for context
+            ref_example_section = ""
+            if args.test_runner_file and args.test_runner_file.exists():
+                ref_code = args.test_runner_file.read_text(encoding="utf-8", errors="ignore")
+                ref_example_section = f"Reference Example Implementation Suite ({args.test_runner_file.name}):\n```c\n{ref_code}\n```\n"
+                print(f" [INFO] Ingested reference example context: {args.test_runner_file.name}")
 
             try:
                 # Phase 1: Initial Generation
@@ -397,6 +494,7 @@ def main():
                     header_name=header_name,
                     header_content=header_content,
                     source_section=source_section,
+                    ref_example_section=ref_example_section,
                 )
 
                 print(f" [API] Sending initial prompt to Gemini ({args.model})...")
@@ -426,12 +524,11 @@ def main():
                 # Phase 2: Compiler Verification & Self-Correction Loop
                 for attempt in range(1, args.max_retries + 1):
                     print(f" -> Compilation Attempt {attempt}/{args.max_retries}...")
-                    print(f" [BUILD] Executing '{args.build_cmd}' (this typically takes 20-60s)...")
+                    print(f" [BUILD] Executing '{args.build_cmd}' inside {proj_dir.name}...")
 
-                    args.test_runner_file.parent.mkdir(parents=True, exist_ok=True)
-                    args.test_runner_file.write_text(current_code, encoding="utf-8")
+                    target_main_c.write_text(current_code, encoding="utf-8")
 
-                    compiled_ok, build_log = compile_project(build_cmd_list, args.test_runner_file.parent.parent)
+                    compiled_ok, build_log = compile_project(build_cmd_list, proj_dir)
 
                     if compiled_ok:
                         print(f" [PASS] Clean build succeeded on attempt {attempt}!")
@@ -483,16 +580,10 @@ def main():
                         print("----------------------------------------\n")
 
                 # Phase 3: Save generated example
-                target_filename = f"{header_path.stem}_example.c"
-                destination = args.output_dir / target_filename
-
                 if success:
-                    destination.write_text(current_code, encoding="utf-8")
-                    print(f" [SAVED] Verified example saved to: {destination}")
+                    print(f" [SAVED] Verified standalone project ready at: {proj_dir}")
                 else:
-                    failed_destination = args.output_dir / f"{header_path.stem}_failed.c"
-                    failed_destination.write_text(current_code, encoding="utf-8")
-                    print(f" [FAILED] Saved unverified candidate to: {failed_destination}")
+                    print(f" [FAILED] Saved candidate code in {proj_dir}/main/main.c for inspection")
 
             except Exception as header_exc:
                 print(f" [ERROR] API call failed for {header_name}: {header_exc}")
@@ -507,12 +598,6 @@ def main():
                 time.sleep(args.delay)
 
     finally:
-        if backup_file and backup_file.exists():
-            if args.test_runner_file.exists():
-                args.test_runner_file.unlink()
-            backup_file.rename(args.test_runner_file)
-            print(f"\n[CLEANUP] Restored original {args.test_runner_file}")
-
         if args.show_usage:
             usage_tracker.print_summary()
 

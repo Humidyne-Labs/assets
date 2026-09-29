@@ -25,6 +25,7 @@ tool_harness/
 │   └── idf_build_mcp_server.py   # MCP server: ESP-IDF build, size & compilation harness
 ├── tools/
 │   ├── generate_bsp_examples.py  # Gemini-driven BSP example generator & build validator
+│   ├── test_gemini_api.py        # Fast Gemini API connection, latency & authentication tester
 │   └── lvgl_headless/
 │       ├── headless_harness.c    # C harness template for LVGL 9 UI rendering
 │       └── stb_image_write.h     # Single-header PNG encoder
@@ -52,7 +53,7 @@ Target path: `C:\Users\Matt\Documents\GitHub\esp32-s3_bsp`
 - `read_bsp_source(source_name)`: Reads specific BSP C implementation file (e.g. `bsp_display.c`, `bsp_i2c.c`).
 - `search_bsp_api(query)`: Searches across BSP files for symbols, function prototypes, or GPIO macros.
 - `list_bsp_examples()`: Lists available reference example files.
-- `get_bsp_example_code(example_relative_path)`: Reads source code of a specific BSP example.
+- `get_bsp_example_code(example_relative_path)`: Reads source code of a specific BSP example (accepts project folder names like `bsp_display_example` or direct file paths).
 
 ### 2. LVGL 9 Context Server (`lvgl-context`)
 Target path: `./lvgl-9.6.0`
@@ -120,18 +121,22 @@ set GEMINI_API_KEY=your_api_key_here
 set "GEMINI_API_KEY=your_api_key_here"
 python -c "import os; print('Key set:', bool(os.getenv('GEMINI_API_KEY')))"
 
-# 1. List available Gemini models
+# 1. Quick test API connection & response latency
+python tools/test_gemini_api.py
+
+# 2. List available Gemini models
 python tools/generate_bsp_examples.py --list-models
 
-# 2. Batch generate and compile examples with token usage statistics, verbose diagnostics, and 5 RPM rate limit pacing
+# 3. Batch generate and compile standalone example projects (skipping existing ones)
 python tools/generate_bsp_examples.py \
     --headers-dir "C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\components\esp32-s3_bsp\include\bsp" \
     --sources-dir "C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\components\esp32-s3_bsp\src" \
     --output-dir "C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\examples" \
-    --model "gemini-2.5-flash" \
+    --model "gemini-3.6-flash" \
     --delay 12.0 \
     --show-usage \
     --verbose \
+    --skip-existing \
     --build-cmd "idf.py build"
 
 # 3. Alternative: Use Google Cloud Vertex AI mode

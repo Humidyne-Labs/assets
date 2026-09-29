@@ -167,18 +167,35 @@ def list_bsp_examples() -> list[str]:
 
 @mcp.tool()
 def get_bsp_example_code(example_relative_path: str) -> str:
-    """Reads the complete source code of a specific BSP reference example."""
+    """Reads the complete source code of a specific BSP reference example (accepts project folder name or direct file path)."""
     root = _get_bsp_root()
-    target = root / example_relative_path
-    if not target.exists():
-        # Try direct match inside examples dir
-        examples_dir = _find_bsp_examples_dir()
-        target = examples_dir / example_relative_path
+    examples_dir = _find_bsp_examples_dir()
 
-    if not target.exists() or not target.is_file():
-        return f"Error: Example file '{example_relative_path}' not found."
+    candidates = [
+        root / example_relative_path,
+        examples_dir / example_relative_path,
+        examples_dir / f"{example_relative_path}_example",
+        examples_dir / example_relative_path / "main" / "main.c",
+        examples_dir / f"{example_relative_path}_example" / "main" / "main.c",
+    ]
 
-    return f"/* === BSP Example: {example_relative_path} === */\n\n" + target.read_text(encoding="utf-8", errors="ignore")
+    target = None
+    for cand in candidates:
+        if cand.exists():
+            if cand.is_file():
+                target = cand
+                break
+            elif cand.is_dir():
+                main_c = cand / "main" / "main.c"
+                if main_c.exists() and main_c.is_file():
+                    target = main_c
+                    break
+
+    if not target or not target.is_file():
+        return f"Error: Example file or project '{example_relative_path}' not found."
+
+    display_path = str(target.relative_to(root)) if root in target.parents or target.parent == root else str(target)
+    return f"/* === BSP Example: {display_path} === */\n\n" + target.read_text(encoding="utf-8", errors="ignore")
 
 
 if __name__ == "__main__":
