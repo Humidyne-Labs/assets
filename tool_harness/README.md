@@ -116,13 +116,15 @@ set GEMINI_API_KEY=your_api_key_here
 # 1. List available Gemini models
 python tools/generate_bsp_examples.py --list-models
 
-# 2. Batch generate and compile examples with token usage statistics
+# 2. Batch generate and compile examples with token usage statistics, verbose diagnostics, and 5 RPM rate limit pacing
 python tools/generate_bsp_examples.py \
     --headers-dir "C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\components\esp32-s3_bsp\include\bsp" \
     --sources-dir "C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\components\esp32-s3_bsp\src" \
     --output-dir "C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\examples" \
     --model "gemini-2.5-flash" \
+    --delay 12.0 \
     --show-usage \
+    --verbose \
     --build-cmd "idf.py build"
 
 # 3. Alternative: Use Google Cloud Vertex AI mode

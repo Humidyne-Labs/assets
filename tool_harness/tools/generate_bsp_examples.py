@@ -123,17 +123,19 @@ def extract_c_code(response_text: str) -> str:
     return response_text.strip()
 
 
-def compile_project(build_cmd: list[str], working_dir: Path) -> tuple[bool, str]:
+def compile_project(build_cmd, working_dir: Path) -> tuple[bool, str]:
     """Runs the build system command and captures diagnostics."""
     try:
+        cmd_input = " ".join(build_cmd) if isinstance(build_cmd, list) else build_cmd
         proc = subprocess.run(
-            build_cmd,
+            cmd_input,
             cwd=working_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             timeout=180,
             check=False,
+            shell=True,
         )
         return proc.returncode == 0, proc.stdout
     except subprocess.TimeoutExpired:
@@ -149,6 +151,60 @@ def filter_compiler_errors(build_output: str, max_lines: int = 40) -> str:
     if not error_lines:
         return "\n".join(lines[-max_lines:])
     return "\n".join(error_lines[:max_lines])
+
+
+_LAST_API_CALL_TIME = 0.0
+
+
+def call_gemini_with_retry(client, model: str, contents, config, max_retries: int = 3, min_delay: float = 12.0, verbose: bool = False):
+    """Executes client.models.generate_content with strict pacing delay, 503/429 backoff, and model fallbacks."""
+    import time
+    global _LAST_API_CALL_TIME
+
+    # Enforce minimum delay between ANY two API calls to prevent 429 rate limits
+    now = time.time()
+    elapsed = now - _LAST_API_CALL_TIME
+    if min_delay > 0 and _LAST_API_CALL_TIME > 0 and elapsed < min_delay:
+        sleep_dur = min_delay - elapsed
+        print(f" [PACING] Pausing {sleep_dur:.1f}s for 5 RPM rate limit...")
+        time.sleep(sleep_dur)
+
+    clean_model = model.replace("models/", "")
+    fallback_chain = [model]
+    for alt in ("gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash"):
+        if alt not in fallback_chain and alt != clean_model:
+            fallback_chain.append(alt)
+
+    for target_model in fallback_chain:
+        for attempt in range(1, max_retries + 1):
+            try:
+                _LAST_API_CALL_TIME = time.time()
+                response = client.models.generate_content(
+                    model=target_model,
+                    contents=contents,
+                    config=config,
+                )
+                return response
+            except Exception as exc:
+                err_str = str(exc).lower()
+                is_transient = any(k in err_str for k in ("503", "unavailable", "429", "rate", "overloaded", "resource_exhausted", "quota"))
+                is_not_found = any(k in err_str for k in ("404", "not_found", "no longer available", "invalid model"))
+
+                if verbose:
+                    import traceback
+                    print(f" [DEBUG API EXCEPTION] ({target_model} attempt {attempt}): {exc}")
+                    traceback.print_exc()
+
+                if is_transient and attempt < max_retries:
+                    wait_sec = attempt * 15
+                    print(f" [RATE LIMIT / BUSY] Model '{target_model}' rate-limited (429/503). Waiting {wait_sec}s (Attempt {attempt}/{max_retries})...")
+                    time.sleep(wait_sec)
+                elif (is_transient or is_not_found) and target_model != fallback_chain[-1]:
+                    print(f" [API WARN] Model '{target_model}' failed ({'Not Found' if is_not_found else 'Rate Limited/Busy'}). Trying next fallback model...")
+                    break
+                else:
+                    raise exc
+    raise RuntimeError(f"Failed to generate content with model {model} and all fallback options.")
 
 
 def initialize_genai_client(api_key: str = "", use_vertex: bool = False, project: str = "", location: str = "us-central1"):
@@ -263,6 +319,18 @@ def main():
         action="store_true",
         help="Display detailed token usage statistics after generation",
     )
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=12.0,
+        help="Delay in seconds between API calls to respect 5 RPM rate limit (default: 12.0s)",
+    )
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Enable verbose output (shows full compiler build logs, generated code, and API tracebacks)",
+    )
     args = parser.parse_args()
 
     client = initialize_genai_client(
@@ -315,82 +383,118 @@ def main():
                     source_section = f"Matching Implementation Source File ({candidate_src.name}):\n```c\n{src_content}\n```\n"
                     print(f" [INFO] Included matching implementation source: {candidate_src.name}")
 
-            # Phase 1: Initial Generation
-            prompt = INITIAL_PROMPT_TEMPLATE.format(
-                header_name=header_name,
-                header_content=header_content,
-                source_section=source_section,
-            )
-
-            response = client.models.generate_content(
-                model=args.model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=SYSTEM_INSTRUCTION,
-                    temperature=0.2,
-                ),
-            )
-
-            usage = usage_tracker.record_usage(getattr(response, "usage_metadata", None))
-            if usage and args.show_usage:
-                print(f" [TOKENS] Initial Turn: Prompt={usage[0]}, Candidate={usage[1]}, Total={usage[2]}")
-
-            current_code = extract_c_code(response.text)
-            success = False
-
-            # Phase 2: Compiler Verification & Self-Correction Loop
-            for attempt in range(1, args.max_retries + 1):
-                print(f" -> Compilation Attempt {attempt}/{args.max_retries}...")
-
-                args.test_runner_file.parent.mkdir(parents=True, exist_ok=True)
-                args.test_runner_file.write_text(current_code, encoding="utf-8")
-
-                compiled_ok, build_log = compile_project(build_cmd_list, args.test_runner_file.parent.parent)
-
-                if compiled_ok:
-                    print(f" [PASS] Clean build succeeded on attempt {attempt}!")
-                    success = True
-                    break
-
-                print(f" [FAIL] Build failed. Extracting diagnostics...")
-                diagnostics = filter_compiler_errors(build_log)
-                print(f"Diagnostics preview:\n{diagnostics[:300]}...\n")
-
-                if attempt == args.max_retries:
-                    print(f" [ABORT] Exceeded max retries for {header_name}.")
-                    break
-
-                fix_prompt = FIX_PROMPT_TEMPLATE.format(
-                    compiler_errors=diagnostics,
-                    broken_code=current_code,
+            try:
+                # Phase 1: Initial Generation
+                prompt = INITIAL_PROMPT_TEMPLATE.format(
+                    header_name=header_name,
                     header_content=header_content,
+                    source_section=source_section,
                 )
 
-                fix_response = client.models.generate_content(
+                response = call_gemini_with_retry(
+                    client=client,
                     model=args.model,
-                    contents=fix_prompt,
+                    contents=prompt,
                     config=types.GenerateContentConfig(
                         system_instruction=SYSTEM_INSTRUCTION,
-                        temperature=0.1,
+                        temperature=0.2,
                     ),
+                    min_delay=args.delay,
+                    verbose=args.verbose,
                 )
-                fix_usage = usage_tracker.record_usage(getattr(fix_response, "usage_metadata", None))
-                if fix_usage and args.show_usage:
-                    print(f" [TOKENS] Retry {attempt}: Prompt={fix_usage[0]}, Candidate={fix_usage[1]}, Total={fix_usage[2]}")
 
-                current_code = extract_c_code(fix_response.text)
+                usage = usage_tracker.record_usage(getattr(response, "usage_metadata", None))
+                if usage and args.show_usage:
+                    print(f" [TOKENS] Initial Turn: Prompt={usage[0]}, Candidate={usage[1]}, Total={usage[2]}")
 
-            # Phase 3: Save generated example
-            target_filename = f"{header_path.stem}_example.c"
-            destination = args.output_dir / target_filename
+                current_code = extract_c_code(response.text)
+                if args.verbose:
+                    print("\n--- GENERATED CODE (INITIAL) ---")
+                    print(current_code)
+                    print("--------------------------------\n")
+                success = False
 
-            if success:
-                destination.write_text(current_code, encoding="utf-8")
-                print(f" [SAVED] Verified example saved to: {destination}")
-            else:
-                failed_destination = args.output_dir / f"{header_path.stem}_failed.c"
-                failed_destination.write_text(current_code, encoding="utf-8")
-                print(f" [FAILED] Saved unverified candidate to: {failed_destination}")
+                # Phase 2: Compiler Verification & Self-Correction Loop
+                for attempt in range(1, args.max_retries + 1):
+                    print(f" -> Compilation Attempt {attempt}/{args.max_retries}...")
+
+                    args.test_runner_file.parent.mkdir(parents=True, exist_ok=True)
+                    args.test_runner_file.write_text(current_code, encoding="utf-8")
+
+                    compiled_ok, build_log = compile_project(build_cmd_list, args.test_runner_file.parent.parent)
+
+                    if compiled_ok:
+                        print(f" [PASS] Clean build succeeded on attempt {attempt}!")
+                        if args.verbose:
+                            print("\n--- FULL BUILD LOG (SUCCESS) ---")
+                            print(build_log)
+                            print("--------------------------------\n")
+                        success = True
+                        break
+
+                    print(f" [FAIL] Build failed. Extracting diagnostics...")
+                    diagnostics = filter_compiler_errors(build_log)
+                    if args.verbose:
+                        print("\n--- FULL BUILD LOG (FAILURE) ---")
+                        print(build_log)
+                        print("--------------------------------\n")
+                    else:
+                        print(f"Diagnostics preview:\n{diagnostics[:300]}...\n")
+
+                    if attempt == args.max_retries:
+                        print(f" [ABORT] Exceeded max retries for {header_name}.")
+                        break
+
+                    fix_prompt = FIX_PROMPT_TEMPLATE.format(
+                        compiler_errors=diagnostics,
+                        broken_code=current_code,
+                        header_content=header_content,
+                    )
+
+                    fix_response = call_gemini_with_retry(
+                        client=client,
+                        model=args.model,
+                        contents=fix_prompt,
+                        config=types.GenerateContentConfig(
+                            system_instruction=SYSTEM_INSTRUCTION,
+                            temperature=0.1,
+                        ),
+                        min_delay=args.delay,
+                        verbose=args.verbose,
+                    )
+                    fix_usage = usage_tracker.record_usage(getattr(fix_response, "usage_metadata", None))
+                    if fix_usage and args.show_usage:
+                        print(f" [TOKENS] Retry {attempt}: Prompt={fix_usage[0]}, Candidate={fix_usage[1]}, Total={fix_usage[2]}")
+
+                    current_code = extract_c_code(fix_response.text)
+                    if args.verbose:
+                        print(f"\n--- GENERATED CODE (RETRY {attempt}) ---")
+                        print(current_code)
+                        print("----------------------------------------\n")
+
+                # Phase 3: Save generated example
+                target_filename = f"{header_path.stem}_example.c"
+                destination = args.output_dir / target_filename
+
+                if success:
+                    destination.write_text(current_code, encoding="utf-8")
+                    print(f" [SAVED] Verified example saved to: {destination}")
+                else:
+                    failed_destination = args.output_dir / f"{header_path.stem}_failed.c"
+                    failed_destination.write_text(current_code, encoding="utf-8")
+                    print(f" [FAILED] Saved unverified candidate to: {failed_destination}")
+
+            except Exception as header_exc:
+                print(f" [ERROR] API call failed for {header_name}: {header_exc}")
+                if args.verbose:
+                    import traceback
+                    traceback.print_exc()
+                print(f" [SKIP] Skipping {header_name} and continuing with remaining headers...")
+
+            if args.delay > 0 and header_path != headers[-1]:
+                import time
+                print(f" [PACING] Pausing {args.delay}s to respect 5 RPM rate limit...")
+                time.sleep(args.delay)
 
     finally:
         if backup_file and backup_file.exists():
