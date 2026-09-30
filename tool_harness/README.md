@@ -127,7 +127,7 @@ python tools/test_gemini_api.py
 # 2. List available Gemini models
 python tools/generate_bsp_examples.py --list-models
 
-# 3. Batch generate and compile standalone example projects (skipping existing ones)
+# 3. Batch generate & compile standalone projects with 16-model fallback, persistent run logging, and 5 RPM pacing
 python tools/generate_bsp_examples.py \
     --headers-dir "C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\components\esp32-s3_bsp\include\bsp" \
     --sources-dir "C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\components\esp32-s3_bsp\src" \
@@ -137,6 +137,7 @@ python tools/generate_bsp_examples.py \
     --show-usage \
     --verbose \
     --skip-existing \
+    --log-dir "run_log" \
     --build-cmd "idf.py build"
 
 # 3. Alternative: Use Google Cloud Vertex AI mode

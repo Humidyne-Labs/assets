@@ -11,6 +11,7 @@ import os
 import re
 import sys
 import argparse
+import datetime
 import subprocess
 import warnings
 from pathlib import Path
@@ -21,6 +22,35 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 # Override print to ensure immediate unbuffered output to stdout
 print = partial(print, flush=True)
+
+
+class TeeLogger:
+    """Tee output stream that writes simultaneously to terminal stdout and persistent log files."""
+    def __init__(self, log_path: Path):
+        self.terminal = sys.stdout
+        self.log_path = log_path
+        self.log_path.parent.mkdir(parents=True, exist_ok=True)
+        self.log_file = open(self.log_path, "a", encoding="utf-8", buffering=1)
+
+        latest_path = self.log_path.parent / "latest_run.log"
+        self.latest_file = open(latest_path, "w", encoding="utf-8", buffering=1)
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.terminal.flush()
+        self.log_file.write(message)
+        self.log_file.flush()
+        self.latest_file.write(message)
+        self.latest_file.flush()
+
+    def flush(self):
+        self.terminal.flush()
+        self.log_file.flush()
+        self.latest_file.flush()
+
+    def close(self):
+        self.log_file.close()
+        self.latest_file.close()
 
 # Google SDK Imports
 GENAI_AVAILABLE = False
@@ -182,7 +212,28 @@ def call_gemini_with_retry(client, model: str, contents, config, max_retries: in
 
     clean_model = model.replace("models/", "")
     fallback_chain = [model]
-    for alt in ("gemini-3.6-flash", "gemini-2.5-flash", "gemini-3.8-flash", "gemini-3.7-flash", "gemini-flash-latest"):
+
+    # Triaged 16-model fallback list prioritizing high-capacity, fast, and high-intelligence endpoints
+    triaged_fallback_models = (
+        "gemini-3.6-flash",          # Tier 1: Fast & smart default
+        "gemini-2.5-flash",          # Tier 1: Maximum stability & capacity
+        "gemini-3.8-flash",          # Tier 1: Latest reasoning Flash
+        "gemini-3.7-flash",          # Tier 1: High capability Flash
+        "gemini-3.5-flash",          # Tier 1: Proven Flash model
+        "gemini-3.1-pro-preview",    # Tier 2: High intelligence Pro model
+        "gemini-2.5-pro",            # Tier 2: Stable flagship Pro model
+        "gemini-flash-latest",       # Pointer: Always latest Flash pointer
+        "gemini-pro-latest",         # Pointer: Always latest Pro pointer
+        "gemini-3.1-flash-lite",     # Tier 3: Ultra-fast Lite model
+        "gemini-3.5-flash-lite",     # Tier 3: Lightweight 3.5 Flash
+        "gemini-2.5-flash-lite",     # Tier 3: Lightweight 2.5 Flash
+        "gemini-flash-lite-latest",  # Pointer: Always latest Lite pointer
+        "gemini-3-flash-preview",    # Tier 4: Gemini 3 Flash preview
+        "gemma-4-31b-it",            # Open Model: Gemma 4 31B Instruction-tuned
+        "gemma-4-26b-a4b-it",        # Open Model: Gemma 4 26B Instruction-tuned
+    )
+
+    for alt in triaged_fallback_models:
         if alt not in fallback_chain and alt != clean_model:
             fallback_chain.append(alt)
 
@@ -424,7 +475,27 @@ def main():
         action="store_true",
         help="Skip generation if an example project directory already exists for a header",
     )
+    parser.add_argument(
+        "--log-dir",
+        type=Path,
+        default=Path(r"C:\Users\Matt\Documents\GitHub\assets\tool_harness\run_log"),
+        help="Directory to store persistent run log files (default: run_log/)",
+    )
+    parser.add_argument(
+        "--log-file",
+        type=Path,
+        default=None,
+        help="Explicit path to a log file (default: timestamped file inside log-dir)",
+    )
     args = parser.parse_args()
+
+    # Initialize persistent TeeLogger for global run logging
+    timestamp_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file_path = args.log_file or (args.log_dir / f"run_{timestamp_str}.log")
+    logger = TeeLogger(log_file_path)
+    sys.stdout = logger
+    sys.stderr = logger
+    print(f"[LOG] Run log initialized: {log_file_path}")
 
     client = initialize_genai_client(
         api_key=args.api_key,
@@ -522,6 +593,14 @@ def main():
                 success = False
 
                 # Phase 2: Compiler Verification & Self-Correction Loop
+                proj_build_log_lines = [
+                    f"==================================================",
+                    f"BUILD VALIDATION REPORT: {proj_name}",
+                    f"Subsystem Header: {header_name}",
+                    f"Timestamp: {datetime.datetime.now().isoformat()}",
+                    f"==================================================\n",
+                ]
+
                 for attempt in range(1, args.max_retries + 1):
                     print(f" -> Compilation Attempt {attempt}/{args.max_retries}...")
                     print(f" [BUILD] Executing '{args.build_cmd}' inside {proj_dir.name}...")
@@ -529,6 +608,11 @@ def main():
                     target_main_c.write_text(current_code, encoding="utf-8")
 
                     compiled_ok, build_log = compile_project(build_cmd_list, proj_dir)
+
+                    proj_build_log_lines.append(f"\n--- Attempt {attempt}/{args.max_retries} ---")
+                    proj_build_log_lines.append(f"Result: {'PASS' if compiled_ok else 'FAIL'}")
+                    proj_build_log_lines.append("Build Output Log:")
+                    proj_build_log_lines.append(build_log)
 
                     if compiled_ok:
                         print(f" [PASS] Clean build succeeded on attempt {attempt}!")
@@ -541,6 +625,9 @@ def main():
 
                     print(f" [FAIL] Build failed. Extracting diagnostics...")
                     diagnostics = filter_compiler_errors(build_log)
+                    proj_build_log_lines.append("\nExtracted Compiler Diagnostics:")
+                    proj_build_log_lines.append(diagnostics)
+
                     if args.verbose:
                         print("\n--- FULL BUILD LOG (FAILURE) ---")
                         print(build_log)
@@ -578,6 +665,9 @@ def main():
                         print(f"\n--- GENERATED CODE (RETRY {attempt}) ---")
                         print(current_code)
                         print("----------------------------------------\n")
+
+                # Save per-project build validation log
+                (proj_dir / "build_validation.log").write_text("\n".join(proj_build_log_lines), encoding="utf-8")
 
                 # Phase 3: Save generated example
                 if success:
