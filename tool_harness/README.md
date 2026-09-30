@@ -24,11 +24,14 @@ tool_harness/
 │   ├── firmware_analyzer_mcp.py  # MCP server: Linker map memory footprint & symbol profiler
 │   └── idf_build_mcp_server.py   # MCP server: ESP-IDF build, size & compilation harness
 ├── tools/
-│   ├── generate_bsp_examples.py  # Gemini-driven BSP example generator & build validator
-│   ├── test_gemini_api.py        # Fast Gemini API connection, latency & authentication tester
+│   ├── generate_bsp_examples.py     # Gemini-driven BSP example generator & build validator
+│   ├── rebuild_all_examples.py     # Batch ESP-IDF example rebuilder & master build log generator
+│   ├── open_examples_in_notepadpp.py# Opens all example main.c files in Notepad++ tabs
+│   ├── open_examples_in_notepadpp.bat# Windows batch launcher for Notepad++ review
+│   ├── test_gemini_api.py           # Fast Gemini API connection, latency & authentication tester
 │   └── lvgl_headless/
-│       ├── headless_harness.c    # C harness template for LVGL 9 UI rendering
-│       └── stb_image_write.h     # Single-header PNG encoder
+│       ├── headless_harness.c       # C harness template for LVGL 9 UI rendering
+│       └── stb_image_write.h        # Single-header PNG encoder
 └── lvgl-9.6.0/                   # LVGL 9 source tree & reference examples
 ```
 
@@ -139,6 +142,17 @@ python tools/generate_bsp_examples.py \
     --skip-existing \
     --log-dir "run_log" \
     --build-cmd "idf.py build"
+
+# 4. Batch rebuild all 22+ generated ESP-IDF example projects and produce master build logs
+python tools/rebuild_all_examples.py \
+    --examples-dir "C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\examples" \
+    --build-cmd "idf.py build" \
+    --log-dir "run_log"
+
+# 5. Open all 22+ generated example main.c files in Notepad++ tabs for code review
+python tools/open_examples_in_notepadpp.py
+# OR double-click / run:
+tools\open_examples_in_notepadpp.bat
 
 # 3. Alternative: Use Google Cloud Vertex AI mode
 python tools/generate_bsp_examples.py --use-vertex --project "your-gcp-project-id" --show-usage

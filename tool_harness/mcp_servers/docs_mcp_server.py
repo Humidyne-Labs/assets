@@ -5,12 +5,40 @@ Provides targeted search, page-level text extraction, PDF visual page rendering,
 and dynamic hooks for adding/listing/removing asset directories at runtime.
 """
 
+import sys
+import logging
 import os
 import json
 import base64
 from pathlib import Path
+import pymupdf  # PyMuPDF
 from mcp.server.fastmcp import FastMCP
-import fitz  # PyMuPDF
+
+# Oversight File & Stream Logging Setup
+LOG_DIR = Path.home() / ".mcp_logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+LOG_FILE = LOG_DIR / "docs_mcp_server.log"
+
+class SuppressRPCValidationErrorFilter(logging.Filter):
+    """Filters out session-level RPC validation log dumps for non-standard methods (e.g. server/discover)
+    so they do not contaminate stdio streams or pollute client logs.
+    """
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        if "Failed to validate request" in msg or "validation errors for ClientRequest" in msg:
+            return False
+        return True
+
+_file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
+_file_handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(name)s: %(message)s"))
+
+_stderr_handler = logging.StreamHandler(sys.stderr)
+_stderr_handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(name)s: %(message)s"))
+
+_root_logger = logging.getLogger()
+_root_logger.setLevel(logging.INFO)
+_root_logger.handlers = [_file_handler, _stderr_handler]
+_root_logger.addFilter(SuppressRPCValidationErrorFilter())
 
 mcp = FastMCP("Project-Docs-Server")
 
@@ -208,23 +236,23 @@ def search_docs_text(keyword: str, max_results: int = 10) -> list[dict]:
             if not pdf_file.is_file():
                 continue
             try:
-                doc = fitz.open(pdf_file)
-                for page_idx in range(len(doc)):
-                    page = doc[page_idx]
-                    text = page.get_text()
-                    if keyword_lower in text.lower():
-                        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
-                        match_context = [ln for ln in lines if keyword_lower in ln.lower()]
+                with pymupdf.open(pdf_file) as doc:
+                    for page_idx in range(len(doc)):
+                        page = doc[page_idx]
+                        text = page.get_text()
+                        if keyword_lower in text.lower():
+                            lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+                            match_context = [ln for ln in lines if keyword_lower in ln.lower()]
 
-                        results.append({
-                            "root": str(root),
-                            "file": str(pdf_file.relative_to(root)),
-                            "page": page_idx + 1,
-                            "type": "pdf",
-                            "snippet": " | ".join(match_context[:3])
-                        })
-                        if len(results) >= max_results:
-                            return results
+                            results.append({
+                                "root": str(root),
+                                "file": str(pdf_file.relative_to(root)),
+                                "page": page_idx + 1,
+                                "type": "pdf",
+                                "snippet": " | ".join(match_context[:3])
+                            })
+                            if len(results) >= max_results:
+                                return results
             except Exception:
                 continue
 
@@ -261,11 +289,11 @@ def read_pdf_page(pdf_relative_path: str, page_number: int) -> str:
 
         if pdf_path.exists() and pdf_path.is_file():
             try:
-                doc = fitz.open(pdf_path)
-                if page_number < 1 or page_number > len(doc):
-                    return f"Page {page_number} out of range (Total pages: {len(doc)})."
-                page = doc[page_number - 1]
-                return f"--- {pdf_relative_path} (Page {page_number}/{len(doc)}) ---\n" + page.get_text()
+                with pymupdf.open(pdf_path) as doc:
+                    if page_number < 1 or page_number > len(doc):
+                        return f"Page {page_number} out of range (Total pages: {len(doc)})."
+                    page = doc[page_number - 1]
+                    return f"--- {pdf_relative_path} (Page {page_number}/{len(doc)}) ---\n" + page.get_text()
             except Exception as exc:
                 return f"Error opening PDF: {exc}"
 
@@ -286,21 +314,21 @@ def render_pdf_page_to_image(pdf_relative_path: str, page_number: int, dpi: int 
 
         if pdf_path.exists() and pdf_path.is_file():
             try:
-                doc = fitz.open(pdf_path)
-                if page_number < 1 or page_number > len(doc):
-                    return {"error": f"Page {page_number} out of range (Total pages: {len(doc)})."}
+                with pymupdf.open(pdf_path) as doc:
+                    if page_number < 1 or page_number > len(doc):
+                        return {"error": f"Page {page_number} out of range (Total pages: {len(doc)})."}
 
-                page = doc[page_number - 1]
-                pix = page.get_pixmap(dpi=dpi)
-                img_bytes = pix.tobytes("png")
-                b64_img = base64.b64encode(img_bytes).decode("utf-8")
+                    page = doc[page_number - 1]
+                    pix = page.get_pixmap(dpi=dpi)
+                    img_bytes = pix.tobytes("png")
+                    b64_img = base64.b64encode(img_bytes).decode("utf-8")
 
-                return {
-                    "file": pdf_relative_path,
-                    "page": page_number,
-                    "image_png_base64": b64_img,
-                    "message": f"Rendered page {page_number} at {dpi} DPI."
-                }
+                    return {
+                        "file": pdf_relative_path,
+                        "page": page_number,
+                        "image_png_base64": b64_img,
+                        "message": f"Rendered page {page_number} at {dpi} DPI."
+                    }
             except Exception as exc:
                 return {"error": f"Failed to render PDF page: {exc}"}
 

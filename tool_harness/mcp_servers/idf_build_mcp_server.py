@@ -5,10 +5,35 @@ Provides structured execution of idf.py build, idf.py reconfigure, and idf.py si
 with line-numbered error extraction for agent self-correction.
 """
 
+import sys
+import logging
 import os
 import subprocess
 from pathlib import Path
 from mcp.server.fastmcp import FastMCP
+
+# Oversight File & Stream Logging Setup
+LOG_DIR = Path.home() / ".mcp_logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+LOG_FILE = LOG_DIR / "idf_build_mcp_server.log"
+
+class SuppressRPCValidationErrorFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        if "Failed to validate request" in msg or "validation errors for ClientRequest" in msg:
+            return False
+        return True
+
+_file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
+_file_handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(name)s: %(message)s"))
+
+_stderr_handler = logging.StreamHandler(sys.stderr)
+_stderr_handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(name)s: %(message)s"))
+
+_root_logger = logging.getLogger()
+_root_logger.setLevel(logging.INFO)
+_root_logger.handlers = [_file_handler, _stderr_handler]
+_root_logger.addFilter(SuppressRPCValidationErrorFilter())
 
 mcp = FastMCP("IDF-Build-Server")
 

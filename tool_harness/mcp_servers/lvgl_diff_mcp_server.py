@@ -7,11 +7,55 @@ and Structural Similarity Index (SSIM), and outputs diff overlay heatmaps.
 
 import io
 import base64
+import sys
+import logging
 from pathlib import Path
 from PIL import Image, ImageChops, ImageEnhance
+
+# Oversight File & Stream Logging Setup
+LOG_DIR = Path.home() / ".mcp_logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+LOG_FILE = LOG_DIR / "lvgl_diff_mcp_server.log"
+
+class SuppressRPCValidationErrorFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        if "Failed to validate request" in msg or "validation errors for ClientRequest" in msg:
+            return False
+        return True
+
+_file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
+_file_handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(name)s: %(message)s"))
+
+_stderr_handler = logging.StreamHandler(sys.stderr)
+_stderr_handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(name)s: %(message)s"))
+
+_root_logger = logging.getLogger()
+_root_logger.setLevel(logging.INFO)
+_root_logger.handlers = [_file_handler, _stderr_handler]
+_root_logger.addFilter(SuppressRPCValidationErrorFilter())
+
+HARNESS_DIR = Path(__file__).resolve().parent.parent
+MCP_DIR = Path(__file__).resolve().parent
+
+if str(HARNESS_DIR) not in sys.path:
+    sys.path.insert(0, str(HARNESS_DIR))
+if str(MCP_DIR) not in sys.path:
+    sys.path.insert(0, str(MCP_DIR))
+
 from mcp.server.fastmcp import FastMCP
 
-from mcp_servers.lvgl_virt_mcp_server import render_ui_snapshot
+try:
+    from mcp_servers.lvgl_virt_mcp_server import render_ui_snapshot
+except ModuleNotFoundError:
+    from lvgl_virt_mcp_server import render_ui_snapshot
+
+def _get_pixel_data(img: Image.Image) -> list:
+    """Extracts image pixel sequence cleanly without Pillow deprecation warnings."""
+    if hasattr(img, "get_flattened_data"):
+        return list(img.get_flattened_data())
+    return list(img.getdata())
+
 
 mcp = FastMCP("LVGL-Diff-Server")
 
@@ -56,8 +100,8 @@ def compare_ui_snapshots(baseline_code: str, candidate_code: str, width: int = 2
     total_pixels = width * height
     changed_pixels = 0
 
-    diff_data = diff.getdata()
-    for r, g, b in diff_data:
+    diff_pixels = _get_pixel_data(diff)
+    for r, g, b in diff_pixels:
         if r > 5 or g > 5 or b > 5:
             changed_pixels += 1
 
@@ -67,10 +111,9 @@ def compare_ui_snapshots(baseline_code: str, candidate_code: str, width: int = 2
     heatmap = Image.new("RGB", (width, height), (0, 0, 0))
     base_gray = img_cand.convert("L").convert("RGB")
     enhanced_base = ImageEnhance.Brightness(base_gray).enhance(0.4)
+    enhanced_pixels = _get_pixel_data(enhanced_base)
 
     heatmap_pixels = []
-    cand_pixels = list(img_cand.getdata())
-    diff_pixels = list(diff.getdata())
 
     for i in range(len(diff_pixels)):
         dr, dg, db = diff_pixels[i]
@@ -78,7 +121,7 @@ def compare_ui_snapshots(baseline_code: str, candidate_code: str, width: int = 2
             # Highlight pixel in bright red/magenta
             heatmap_pixels.append((255, 50, 150))
         else:
-            heatmap_pixels.append(enhanced_base.getdata()[i])
+            heatmap_pixels.append(enhanced_pixels[i])
 
     heatmap.putdata(heatmap_pixels)
 
