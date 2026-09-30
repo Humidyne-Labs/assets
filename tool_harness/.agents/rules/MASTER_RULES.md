@@ -55,6 +55,7 @@
 - **Headless UI Snapshot Verification**:
   - Before committing UI code to firmware, pass candidate setup functions to `render_ui_snapshot` via the LVGL Virtualization MCP tool.
   - Visually inspect rendered base64 PNG output to confirm proper widget alignment, font sizing, padding, and border bounds.
+- **Skill Reference**: Load and follow [.agents/skills/lvgl9-ui-virtualization/SKILL.md](file:///c:/Users/Matt/Documents/GitHub/assets/tool_harness/.agents/skills/lvgl9-ui-virtualization/SKILL.md) for pre-tested C code patterns (Cards, Buttons, Progress Arcs, Flex Containers) and tool execution recipes.
 
 ---
 
