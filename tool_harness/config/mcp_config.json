@@ -15,7 +15,7 @@
         "c:/Users/Matt/Documents/GitHub/assets/tool_harness/mcp_servers/lvgl_mcp_server.py"
       ],
       "env": {
-        "LVGL_ROOT": "c:/Users/Matt/Documents/GitHub/assets/tool_harness/lvgl-9.6.0"
+        "LVGL_ROOT": "c:/Users/Matt/Documents/GitHub/assets/tool_harness/lvgl__lvgl-v9.6.0/lvgl"
       }
     },
     "lvgl-virtualization": {
@@ -24,7 +24,7 @@
         "c:/Users/Matt/Documents/GitHub/assets/tool_harness/mcp_servers/lvgl_virt_mcp_server.py"
       ],
       "env": {
-        "LVGL_ROOT": "c:/Users/Matt/Documents/GitHub/assets/tool_harness/lvgl-9.6.0"
+        "LVGL_ROOT": "c:/Users/Matt/Documents/GitHub/assets/tool_harness/lvgl-9.6.0" 
       }
     },
     "lvgl-diff": {
