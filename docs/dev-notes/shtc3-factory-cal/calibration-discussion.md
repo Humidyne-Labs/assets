@@ -23,7 +23,11 @@ The unit under test is performing outside the standard error margin. The physica
 - The sensor 'could' be getting too hot under normal operating conditions. The MCU clock speed is 240Mhz, all periferals enabled, current draw was unmeasured, assumed to be "normal" per operating spec.
 
 ### Low Power Testing
-A new test will be performed in order to observe the effects of 'low power' mode. The unit under test will be placed in a sealed box with a humidification source. Environmental conditions are as follows, environmental temperature 73-75°F, environmental relitive humidity 70% non fluctuating. The unit under test will 'deep sleep' for 60 seconds, publish a reading to the display and resume 'deep sleep'. This will hopefully minimize heat disappation and produce a more 'normal' environmental reading. One additional, calibrated, sensor will be added to the enclosure to provide a frame of reference. It is my hope that the observed delta will be within the acceptable margin of error per the device spec. *The duration of the test is directly dependent on the duration of today's nap*. Recommend test duration is 2-4 human hours.
+A new test will be performed in order to observe the effects of 'low power' mode. The unit under test will be placed in a sealed box with a humidification source. Environmental conditions are as follows, environmental temperature 73-75°F, environmental relitive humidity 70% non fluctuating. The unit under test will 'deep sleep' for 60 seconds, publish a reading to the display and resume 'deep sleep'. 
+
+This will hopefully minimize heat disappation and produce a more 'normal' environmental reading. One additional, calibrated, sensor will be added to the enclosure to provide a frame of reference. It is my hope that the observed delta will be within the acceptable margin of error per the device spec. 
+
+*The duration of the test is directly dependent on the duration of today's nap*. Recommend test duration is 2-4 human hours.
 
 ---
 
