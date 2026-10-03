@@ -35,4 +35,31 @@ This will hopefully minimize heat disappation and produce a more 'normal' enviro
 ---
 
 [Source of Independent 3rd Party Dataset](https://wiki.liutyi.info/display/ARDUINO/v8+Sensors+Board)
+   
+---
+   
+   
+   
+   
+   
+   
+   
+   
+   
+# Results of Controlled Environmental Test
 
+- Klaro Valet Hygrometer: ***70.0% RH***, 23.50°C, ***74.30°F***, Die-tmp NA°C,   NA°F
+- Humid1-OS   Hygrometer: ***54.8% RH***, 27.39°C, ***81.30°F***, Die-tmp 24.8°C, ***76.64°F***
+
+### Test Observations
+The delta between the two units measures 15.2%RH, and 7°F, 3.89°C. This is well beyond the specifications margin of error. The ESP32's internal thermistor was more accurate than the dedicated temperature sensor.
+
+- Estimated test duration 1.5-2 human hours.
+
+[results-image](results-10-03-26.png)
+
+> hmm...... interesting ```*beep boop*```
+   
+   
+   
+   
