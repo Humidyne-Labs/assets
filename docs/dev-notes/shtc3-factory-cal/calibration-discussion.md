@@ -15,7 +15,7 @@ Observing the unpowered hardware under a binocular microscope (10-20x magnificat
 ### Research on the WWW
 I was able to find a dataset that compared the SHTC3 to an array of other environmental sensors of the same class. The data set showed the factory calibration was accurate, and the sensor was able to produce results within the standard operating tolerance with no calibration mechanism in place.
 
-![sensor_plot](sensor_plot.png)
+![sensor_plot](sensor_plot_after-dark.png)
 
 
 ### Preliminary Conclusion and Hypothesis
