@@ -56,7 +56,7 @@ The delta between the two units measures 15.2%RH, and 7°F, 3.89°C. This is wel
 
 - Estimated test duration 1.5-2 human hours.
 
-[results-image](results-10-03-26.png)
+![results-image](results-10-03-26.png)
 
 > hmm...... interesting ```*beep boop*```
    
