@@ -1,0 +1,40 @@
+H = 1010000100110011, 0xA133, 41267, 100.0 * (H / 65536.0)              | 62.968 %RH
+C = 0110010010001011, 0x648B, 25739, -45.0 + (175.0 * (C / 65536.0))    | 23.73 C | 74.714 F
+PROOF =  63 %RH and 23.7 °C.
+
+---
+
+I (3098877) bsp_sensors: SHTC3 Raw Data: T=0x6FEB (CRC=0x66), RH=0x62D2 (CRC=0x6B)
+I (3098877) bsp_sensors: SHTC3 Raw Values: Temp=0x6FEB, RH=0x62D2
+I (3098879) test_suite: [PASS 4/15] SHTC3 Sensor: Temp = 31.51 C (88.71 F), Humidity = 38.60 %RH
+
+H = 0x62D2, 25298, 38.60 %RH        [rh   = too low ]
+C = 0x6FEB, 28651, 31.50 C, 88.71 F [temp = too high]
+
+(Room Spec)
+(61%RH 74F, 23.3C)
+
+------------------------------------------------------------------------------------------------
+I (22211) MEAS_CMD[2]: 0x3fca1f98   78 66                                             |xf|
+I (22227) bsp_sensors: SHTC3 Raw Data: T=0x6FD2 (CRC=0x2B), RH=0x675A (CRC=0xDF)
+I (22227) RX_BUFF[6]: 0x3fca1f90   6f d2 2b 67 5a df                                 |o.+gZ.|
+I (22231) bsp_sensors: SHTC3 Raw Values: Temp=0x6FD2, RH=0x675A
+I (22237) test_suite: [PASS 4/15] SHTC3 Sensor: Temp = 31.44 C (88.59 F), Humidity = 40.37 %RH
+
+
+I (1937) bsp_power:  ADC Cali Voltage: 2063 mV
+I (2028) bsp_common: Battery: 4126 mV (96%)
+I (2120) test_suite: SHTC3 Sensor: Temp = 32.56 C (90.60 F), Humidity = 36.48 %RH
+
+
+I (2041) bsp_sensors: SHTC3 Raw Data: T=0x704D (CRC=0xCB), RH=0x608D (CRC=0xE2)
+I (2041) test_suite: [PASS 4/15] SHTC3 Sensor: Temp = 31.77 C (89.18 F), Humidity = 37.72 %RH
+I (2045) test_suite: --- Full Environmental Telemetry Spread ---
+I (2051) test_suite:   Temperature  : 304.92 K  (31.77 C / 89.18 F)
+I (2057) test_suite:   Humidity     : 37.72 % RH
+I (2061) test_suite:   Dew Point    : 288.73 K  (15.58 C / 60.05 F)
+I (2067) test_suite:   ABS Humidity : 12.55 g/m^3
+I (2071) test_suite: -------------------------------------------
+
+
+[board may be heat soaked! need to test with... idk yet!]
