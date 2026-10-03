@@ -15,6 +15,9 @@ Observing the unpowered hardware under a binocular microscope (10-20x magnificat
 ### Research on the WWW
 I was able to find a dataset that compared the SHTC3 to an array of other environmental sensors of the same class. The data set showed the factory calibration was accurate, and the sensor was able to produce results within the standard operating tolerance with no calibration mechanism in place.
 
+![sensor_plot](sensor_plot.png)
+
+
 ### Preliminary Conclusion and Hypothesis
 The unit under test is performing outside the standard error margin. The physical placement of the SHTC3 is near the board edge, away from the boost converter and main microcontroller unit. A thermal relief is present on the board layout, providing further isolation from heat and noise associated with general runtime.
 
