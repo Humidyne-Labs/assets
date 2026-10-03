@@ -1,7 +1,7 @@
 # Sensor Stability and Factory Calibration Discussion
 
 ### Inital Unit Test
-Within the last 24 hours, I captured series of basic, ambient, environmental, readings with the SHTC3 sensor. Data observation resulted in the following conclusions, "sensors broke", "codes f-ed", "dev kits broke", "my pants are missing". 
+Within the last 24 hours, I captured a series of basic, ambient, environmental, readings with the SHTC3 sensor. Data observation resulted in the following conclusions, "sensors broke", "codes f-ed", "dev kits broke", "my pants are missing". 
 
 ### Data Observations
 During basic runtime testing the SHTC3 consistently output readings with a delta far beyond standard operating tolerance. I was observing relitive humidity readings 20% below ambient, temperature readings 15°F above ambient.
