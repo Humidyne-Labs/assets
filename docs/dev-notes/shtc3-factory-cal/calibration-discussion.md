@@ -37,15 +37,7 @@ This will hopefully minimize heat disappation and produce a more 'normal' enviro
 [Source of Independent 3rd Party Dataset](https://wiki.liutyi.info/display/ARDUINO/v8+Sensors+Board)
    
 ---
-   
-   
-   
-   
-   
-   
-   
-   
-   
+
 # Results of Controlled Environmental Test
 
 - Klaro Valet Hygrometer: ***70.0% RH***, 23.50°C, ***74.30°F***, Die-tmp NA°C,   NA°F
@@ -57,9 +49,27 @@ The delta between the two units measures 15.2%RH, and 7°F, 3.89°C. This is wel
 - Estimated test duration 1.5-2 human hours.
 
 ![results-image](results-10-03-26.png)
+   
+   
+# Thermal Imaging Results
+
+According the thermal recordings, the SHTC3 package (or *SHIT-C3*, as I've come to call it) is at an idle temperature of [27.6C | 81.68F]. The board is in fact being "***thermally soaked***", **NOT** by alot, but by a few degrees Fahrenheit [3.7C | 6.67F], the measured temperature of the SHTC3 during time of capture was about [27.78-28.33C | 82-83F] (ambient was 23.8C | 74.84F). The offending part being the audio codec, measured at [30.2C | 86.36F]. 
+
+> I can safely state, that the audio codec, has increased the board temperature by about 6 degrees Fahrenheit during run time. #Facts! 
+
+### Questions
+
+- Is 6 degrees Fahrenheit offset large enough to cause instability in the SHTC3?
+> I'm reading a temperature delta of 7F during run time testing, and relative humidity delta of 15.2%, again during run time.
+- Will disabling the codec cause more I2C issues? 
+> I leave the codec powered on due to an undetermined conflict and or initialization issue with the I2C bus. When I'm not terminating power to the codec, the issues are not observed, I2C functions as intended. 
+
+
+### Conclusion Time!
+
+I can ***NOT*** "definitely" say that a positive temperature offset of the board is ***directly*** causing the instability observed in the SHTC3.
+
+- I now ***suspect*** the instability issue maybe related to a higher than ambient board temperature. I would need to actually test the sensor when the board is at ambient temperature to confirm any suspicion or correlation.
+- This is also why the sudo temperature calibration function produced no meaningful results. The ESP32 die temperature reading is a reflection of the board temperature, which is also equal to the SHTC3 temperature during run time testing; ultimately producing a "source temperature" of zero.
 
 > hmm...... interesting ```*beep boop*```
-   
-   
-   
-   
