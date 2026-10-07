@@ -1,0 +1,2 @@
+# Remove APK binaries from source tree 
+*.apk

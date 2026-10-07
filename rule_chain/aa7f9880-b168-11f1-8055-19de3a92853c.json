@@ -1,0 +1,191 @@
+{
+  "entityType" : "RULE_CHAIN",
+  "entity" : {
+    "additionalInfo" : {
+      "description" : "Automatically send the custom dashboard an FCM message."
+    },
+    "configuration" : null,
+    "debugMode" : false,
+    "externalId" : null,
+    "firstRuleNodeId" : {
+      "entityType" : "RULE_NODE",
+      "id" : "fe6cdb80-b16b-11f1-8055-19de3a92853c"
+    },
+    "id" : {
+      "entityType" : "RULE_CHAIN",
+      "id" : "aa7f9880-b168-11f1-8055-19de3a92853c"
+    },
+    "name" : "POST FCM Alerts",
+    "root" : false,
+    "type" : "CORE"
+  },
+  "metaData" : {
+    "connections" : [ {
+      "fromIndex" : 1,
+      "toIndex" : 0,
+      "type" : "Success"
+    }, {
+      "fromIndex" : 2,
+      "toIndex" : 3,
+      "type" : "Success"
+    }, {
+      "fromIndex" : 3,
+      "toIndex" : 1,
+      "type" : "True"
+    } ],
+    "firstNodeIndex" : 2,
+    "nodes" : [ {
+      "additionalInfo" : {
+        "description" : "",
+        "layoutX" : 1243,
+        "layoutY" : 154
+      },
+      "configuration" : {
+        "restEndpointUrlPattern" : "https://dash.humid1.com/push/api/v1/notify",
+        "requestMethod" : "POST",
+        "useSimpleClientHttpFactory" : false,
+        "parseToPlainText" : false,
+        "ignoreRequestBody" : false,
+        "enableProxy" : false,
+        "useSystemProxyProperties" : false,
+        "proxyScheme" : null,
+        "proxyHost" : null,
+        "proxyPort" : 0,
+        "proxyUser" : null,
+        "proxyPassword" : null,
+        "readTimeoutMs" : 0,
+        "maxParallelRequestsCount" : 0,
+        "headers" : {
+          "Content-Type" : "application/json"
+        },
+        "credentials" : {
+          "type" : "anonymous"
+        },
+        "maxInMemoryBufferSizeInKb" : 256
+      },
+      "configurationVersion" : 3,
+      "createdTime" : 0,
+      "debugSettings" : {
+        "allEnabled" : false,
+        "allEnabledUntil" : 1789531357777,
+        "failuresEnabled" : false
+      },
+      "externalId" : null,
+      "id" : {
+        "entityType" : "RULE_NODE",
+        "id" : "4286d0d0-b169-11f1-8055-19de3a92853c"
+      },
+      "name" : "Send To Dash",
+      "queueName" : null,
+      "ruleChainId" : null,
+      "singletonMode" : false,
+      "type" : "org.thingsboard.rule.engine.rest.TbRestApiCallNode"
+    }, {
+      "additionalInfo" : {
+        "description" : "",
+        "layoutX" : 926,
+        "layoutY" : 152
+      },
+      "configuration" : {
+        "scriptLang" : "JS",
+        "jsScript" : "// ThingsBoard Transformation Node (script)\n// Maps Alarm events + Customer/User Server Scope attributes to PushPayload\n\n// 1. Extract subscription from Server Scope metadata (User, Customer, or Device fallback)\nvar rawSub = metadata.ss_push_subscription || metadata.cs_push_subscription || metadata.push_subscription;\nvar subscription = {};\n\nif (rawSub) {\n    try {\n        subscription = (typeof rawSub === 'string') ? JSON.parse(rawSub) : rawSub;\n    } catch (e) {\n        subscription = {};\n    }\n}\n\n// 2. Map Alarm Action to Severity\nvar severity = metadata.alarmSeverity || \"CRITICAL\";\nif (metadata.action === \"ClearAlarm\") {\n    severity = \"INFO\";\n}\n\n// 3. Process Temperature (Convert Kelvin to Celsius or Fahrenheit)\nvar formattedTemp = \"\";\nvar rawTemp = parseFloat(metadata.temp !== undefined ? metadata.temp : (msg && msg.temp));\n\nif (!isNaN(rawTemp)) {\n    var unitAttr = metadata.shared_temp_unit || metadata.ss_shared_temp_unit || \"F\";\n    var isCelsius = unitAttr.toString().toUpperCase().trim().indexOf(\"C\") === 0;\n\n    var convertedTemp = isCelsius \n        ? rawTemp - 273.15 \n        : (rawTemp - 273.15) * 1.8 + 32;\n\n    var unitSymbol = isCelsius ? \"°C\" : \"°F\";\n    formattedTemp = convertedTemp.toFixed(1) + \" \" + unitSymbol;\n}\n\n// 4. Build Notification Text\nvar deviceName = metadata.deviceName || metadata.ss_deviceName || \"HUMID1 Sensor\";\nvar alarmType = metadata.alarmType || \"Environmental Alert\";\nvar title = \"\";\nvar body = \"\";\n\nif (metadata.action === \"ClearAlarm\") {\n    title = \"CLEARED: \" + alarmType + \" (\" + deviceName + \")\";\n    body = alarmType + \" condition returned to normal thresholds.\";\n} else {\n    title = \"[\" + severity + \"] \" + alarmType + \" - \" + deviceName;\n    \n    var telemetryDetails = [];\n    if (metadata.rh !== undefined) telemetryDetails.push(\"RH: \" + metadata.rh + \"%\");\n    if (formattedTemp) telemetryDetails.push(\"Temp: \" + formattedTemp);\n    if (metadata.battery !== undefined) telemetryDetails.push(\"Battery: \" + metadata.battery + \"%\");\n    \n    body = \"Alert triggered. Readings: \" + (telemetryDetails.join(\", \") || \"N/A\");\n}\n\n// 5. Construct PushPayload model matching FastAPI expectations\nvar newMsg = {\n    subscription: subscription,\n    title: title,\n    body: body,\n    severity: severity,\n    deviceId: metadata.deviceId || \"\",\n    deviceName: deviceName,\n    url: \"https://dash.humid1.com\",\n    tag: alarmType.toLowerCase().replace(/\\s+/g, '-')\n};\n\nreturn {\n    msg: newMsg,\n    metadata: metadata,\n    msgType: msgType\n};",
+        "tbelScript" : "return {msg: msg, metadata: metadata, msgType: msgType};"
+      },
+      "configurationVersion" : 0,
+      "createdTime" : 0,
+      "debugSettings" : {
+        "allEnabled" : false,
+        "allEnabledUntil" : 1789528493182,
+        "failuresEnabled" : false
+      },
+      "externalId" : null,
+      "id" : {
+        "entityType" : "RULE_NODE",
+        "id" : "fe6c6650-b16b-11f1-8055-19de3a92853c"
+      },
+      "name" : "Create Alert Payload",
+      "queueName" : null,
+      "ruleChainId" : null,
+      "singletonMode" : false,
+      "type" : "org.thingsboard.rule.engine.transform.TbTransformMsgNode"
+    }, {
+      "additionalInfo" : {
+        "description" : "",
+        "layoutX" : 324,
+        "layoutY" : 151
+      },
+      "configuration" : {
+        "tellFailureIfAbsent" : true,
+        "fetchTo" : "METADATA",
+        "clientAttributeNames" : [ ],
+        "sharedAttributeNames" : [ ],
+        "serverAttributeNames" : [ "push_subscription", "push_enabled" ],
+        "latestTsKeyNames" : [ ],
+        "getLatestValueWithTs" : false
+      },
+      "configurationVersion" : 1,
+      "createdTime" : 0,
+      "debugSettings" : {
+        "allEnabled" : false,
+        "allEnabledUntil" : 1789528484772,
+        "failuresEnabled" : false
+      },
+      "externalId" : null,
+      "id" : {
+        "entityType" : "RULE_NODE",
+        "id" : "fe6cdb80-b16b-11f1-8055-19de3a92853c"
+      },
+      "name" : "Get Token Data",
+      "queueName" : null,
+      "ruleChainId" : null,
+      "singletonMode" : false,
+      "type" : "org.thingsboard.rule.engine.metadata.TbGetAttributesNode"
+    }, {
+      "additionalInfo" : {
+        "description" : "",
+        "layoutX" : 627,
+        "layoutY" : 152
+      },
+      "configuration" : {
+        "scriptLang" : "JS",
+        "jsScript" : "// Allow email if attribute is true or has not been explicitly set to false\nvar isEnabled = metadata.ss_push_enabled !== 'false' && metadata.ss_push_enabled !== false;\nreturn isEnabled;",
+        "tbelScript" : ""
+      },
+      "configurationVersion" : 0,
+      "createdTime" : 0,
+      "debugSettings" : {
+        "allEnabled" : false,
+        "allEnabledUntil" : 0,
+        "failuresEnabled" : false
+      },
+      "externalId" : null,
+      "id" : {
+        "entityType" : "RULE_NODE",
+        "id" : "49804f10-b17d-11f1-8055-19de3a92853c"
+      },
+      "name" : "Check Device OPT Value",
+      "queueName" : null,
+      "ruleChainId" : null,
+      "singletonMode" : false,
+      "type" : "org.thingsboard.rule.engine.filter.TbJsFilterNode"
+    } ],
+    "ruleChainConnections" : null
+  },
+  "relations" : [ {
+    "additionalInfo" : null,
+    "from" : {
+      "entityType" : "RULE_CHAIN",
+      "id" : "92da2e30-a9ab-11f1-9663-1fc19e23cbce"
+    },
+    "to" : {
+      "entityType" : "RULE_CHAIN",
+      "id" : "aa7f9880-b168-11f1-8055-19de3a92853c"
+    },
+    "type" : "Uses",
+    "typeGroup" : "COMMON",
+    "version" : 2942
+  } ],
+  "attributes" : {
+    "SERVER_SCOPE" : [ ]
+  }
+}

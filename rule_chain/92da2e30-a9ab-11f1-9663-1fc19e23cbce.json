@@ -1,0 +1,327 @@
+{
+  "entityType" : "RULE_CHAIN",
+  "entity" : {
+    "additionalInfo" : {
+      "description" : "Automatically triggers and clears alarm states for relative humidity, temperature, and battery life."
+    },
+    "configuration" : null,
+    "debugMode" : false,
+    "externalId" : null,
+    "firstRuleNodeId" : {
+      "entityType" : "RULE_NODE",
+      "id" : "4cf0f2f0-a9b5-11f1-9663-1fc19e23cbce"
+    },
+    "id" : {
+      "entityType" : "RULE_CHAIN",
+      "id" : "92da2e30-a9ab-11f1-9663-1fc19e23cbce"
+    },
+    "name" : "Alarms",
+    "root" : false,
+    "type" : "CORE"
+  },
+  "metaData" : {
+    "connections" : [ {
+      "fromIndex" : 0,
+      "toIndex" : 1,
+      "type" : "Success"
+    }, {
+      "fromIndex" : 1,
+      "toIndex" : 5,
+      "type" : "Success"
+    }, {
+      "fromIndex" : 2,
+      "toIndex" : 6,
+      "type" : "Created"
+    }, {
+      "fromIndex" : 2,
+      "toIndex" : 6,
+      "type" : "Updated"
+    }, {
+      "fromIndex" : 2,
+      "toIndex" : 7,
+      "type" : "Created"
+    }, {
+      "fromIndex" : 2,
+      "toIndex" : 7,
+      "type" : "Updated"
+    }, {
+      "fromIndex" : 4,
+      "toIndex" : 2,
+      "type" : "TriggerAlarm"
+    }, {
+      "fromIndex" : 4,
+      "toIndex" : 3,
+      "type" : "ClearAlarm"
+    }, {
+      "fromIndex" : 5,
+      "toIndex" : 4,
+      "type" : "Success"
+    } ],
+    "firstNodeIndex" : 0,
+    "nodes" : [ {
+      "additionalInfo" : {
+        "description" : "",
+        "layoutX" : 314,
+        "layoutY" : 151
+      },
+      "configuration" : {
+        "tellFailureIfAbsent" : true,
+        "fetchTo" : "METADATA",
+        "clientAttributeNames" : [ ],
+        "sharedAttributeNames" : [ "alarm_thresholds", "temp_unit" ],
+        "serverAttributeNames" : [ ],
+        "latestTsKeyNames" : [ "rh", "temp", "battery" ],
+        "getLatestValueWithTs" : false
+      },
+      "configurationVersion" : 1,
+      "createdTime" : 0,
+      "debugSettings" : {
+        "allEnabled" : false,
+        "allEnabledUntil" : 1788942029381,
+        "failuresEnabled" : false
+      },
+      "externalId" : null,
+      "id" : {
+        "entityType" : "RULE_NODE",
+        "id" : "4cf0f2f0-a9b5-11f1-9663-1fc19e23cbce"
+      },
+      "name" : "Attributes Enrichment",
+      "queueName" : null,
+      "ruleChainId" : null,
+      "singletonMode" : false,
+      "type" : "org.thingsboard.rule.engine.metadata.TbGetAttributesNode"
+    }, {
+      "additionalInfo" : {
+        "description" : "",
+        "layoutX" : 623,
+        "layoutY" : 151
+      },
+      "configuration" : {
+        "scriptLang" : "JS",
+        "jsScript" : "// Retrieve the stringified thresholds from metadata\nvar thresholdsStr = metadata.shared_alarm_thresholds || metadata.alarm_thresholds;\n\nif (thresholdsStr) {\n    try {\n        var thresholds = JSON.parse(thresholdsStr);\n        \n        // Unpack each property directly into metadata\n        for (var key in thresholds) {\n            if (thresholds.hasOwnProperty(key)) {\n                metadata[key] = thresholds[key];\n            }\n        }\n    } catch (e) {\n        // Keeps the rule chain running if JSON parsing fails\n    }\n}\n\n// Delete the unneeded raw string key\ndelete metadata.shared_alarm_thresholds;\ndelete metadata.alarm_thresholds;\n\nreturn {msg: msg, metadata: metadata, msgType: msgType};",
+        "tbelScript" : "return {msg: msg, metadata: metadata, msgType: msgType};"
+      },
+      "configurationVersion" : 0,
+      "createdTime" : 0,
+      "debugSettings" : {
+        "allEnabled" : false,
+        "allEnabledUntil" : 1788756429024,
+        "failuresEnabled" : false
+      },
+      "externalId" : null,
+      "id" : {
+        "entityType" : "RULE_NODE",
+        "id" : "167ccfd0-aa75-11f1-9f5e-ebe16f79bb58"
+      },
+      "name" : "Tokenize JSON",
+      "queueName" : null,
+      "ruleChainId" : null,
+      "singletonMode" : false,
+      "type" : "org.thingsboard.rule.engine.transform.TbTransformMsgNode"
+    }, {
+      "additionalInfo" : {
+        "description" : "",
+        "layoutX" : 1575,
+        "layoutY" : 77
+      },
+      "configuration" : {
+        "scriptLang" : "JS",
+        "alarmDetailsBuildJs" : "var details = {};\nif (metadata.prevAlarmDetails) {\n    details = JSON.parse(metadata.prevAlarmDetails);\n    //remove prevAlarmDetails from metadata\n    delete metadata.prevAlarmDetails;\n    //now metadata is the same as it comes IN this rule node\n}\n\n\nreturn details;",
+        "alarmDetailsBuildTbel" : "var details = {};\nif (metadata.prevAlarmDetails != null) {\n    details = JSON.parse(metadata.prevAlarmDetails);\n    //remove prevAlarmDetails from metadata\n    metadata.remove('prevAlarmDetails');\n    //now metadata is the same as it comes IN this rule node\n}\n\n\nreturn details;",
+        "useMessageAlarmData" : false,
+        "overwriteAlarmDetails" : false,
+        "alarmType" : "${alarmType}",
+        "severity" : "${alarmSeverity}",
+        "propagate" : false,
+        "relationTypes" : [ ],
+        "propagateToOwner" : true,
+        "propagateToTenant" : false,
+        "dynamicSeverity" : true
+      },
+      "configurationVersion" : 0,
+      "createdTime" : 0,
+      "debugSettings" : {
+        "allEnabled" : false,
+        "allEnabledUntil" : 1788839768524,
+        "failuresEnabled" : false
+      },
+      "externalId" : null,
+      "id" : {
+        "entityType" : "RULE_NODE",
+        "id" : "8a8ad650-aa7b-11f1-9f5e-ebe16f79bb58"
+      },
+      "name" : "Trigger Alarm",
+      "queueName" : null,
+      "ruleChainId" : null,
+      "singletonMode" : false,
+      "type" : "org.thingsboard.rule.engine.action.TbCreateAlarmNode"
+    }, {
+      "additionalInfo" : {
+        "description" : "",
+        "layoutX" : 1576,
+        "layoutY" : 229
+      },
+      "configuration" : {
+        "scriptLang" : "TBEL",
+        "alarmDetailsBuildJs" : "var details = {};\nif (metadata.prevAlarmDetails) {\n    details = JSON.parse(metadata.prevAlarmDetails);\n    //remove prevAlarmDetails from metadata\n    delete metadata.prevAlarmDetails;\n    //now metadata is the same as it comes IN this rule node\n}\n\n\nreturn details;",
+        "alarmDetailsBuildTbel" : "var details = {};\nif (metadata.prevAlarmDetails != null) {\n    details = JSON.parse(metadata.prevAlarmDetails);\n    //remove prevAlarmDetails from metadata\n    metadata.remove('prevAlarmDetails');\n    //now metadata is the same as it comes IN this rule node\n}\n\n\nreturn details;",
+        "alarmType" : "${alarmType}"
+      },
+      "configurationVersion" : 0,
+      "createdTime" : 0,
+      "debugSettings" : null,
+      "externalId" : null,
+      "id" : {
+        "entityType" : "RULE_NODE",
+        "id" : "8a8b99a0-aa7b-11f1-9f5e-ebe16f79bb58"
+      },
+      "name" : "Clear Alarm",
+      "queueName" : null,
+      "ruleChainId" : null,
+      "singletonMode" : false,
+      "type" : "org.thingsboard.rule.engine.action.TbClearAlarmNode"
+    }, {
+      "additionalInfo" : {
+        "description" : "",
+        "layoutX" : 1251,
+        "layoutY" : 153
+      },
+      "configuration" : {
+        "scriptLang" : "JS",
+        "jsScript" : "return [metadata.action];",
+        "tbelScript" : ""
+      },
+      "configurationVersion" : 0,
+      "createdTime" : 0,
+      "debugSettings" : {
+        "allEnabled" : false,
+        "allEnabledUntil" : 1788839847634,
+        "failuresEnabled" : false
+      },
+      "externalId" : null,
+      "id" : {
+        "entityType" : "RULE_NODE",
+        "id" : "37da3fc0-aa7d-11f1-9f5e-ebe16f79bb58"
+      },
+      "name" : "Trigger",
+      "queueName" : null,
+      "ruleChainId" : null,
+      "singletonMode" : false,
+      "type" : "org.thingsboard.rule.engine.filter.TbJsSwitchNode"
+    }, {
+      "additionalInfo" : {
+        "description" : "",
+        "layoutX" : 943,
+        "layoutY" : 153
+      },
+      "configuration" : {
+        "scriptLang" : "JS",
+        "jsScript" : "var events = [];\n\nfunction evalMetric(val, hiCrit, loCrit, hiWarn, loWarn, hist, name) {\n    if (isNaN(val)) return;\n    \n    // Create an isolated copy of metadata for this specific alarm event\n    var meta = Object.assign({}, metadata);\n    meta.alarmType = name + \" Alarm\";\n\n    // 1. Critical Alarm Check\n    if ((hiCrit && val >= hiCrit) || (loCrit && val <= loCrit)) {\n        meta.alarmSeverity = \"CRITICAL\";\n        meta.action = \"TriggerAlarm\";\n        events.push({msg: msg, metadata: meta, msgType: msgType});\n    \n    // 2. Warning Alarm Check\n    } else if ((hiWarn && val >= hiWarn) || (loWarn && val <= loWarn)) {\n        meta.alarmSeverity = \"WARNING\";\n        meta.action = \"TriggerAlarm\";\n        events.push({msg: msg, metadata: meta, msgType: msgType});\n    \n    // 3. Clear Alarm Check (handles missing hiWarn or loWarn thresholds)\n    } else {\n        var hiClear = !hiWarn || (val < (hiWarn - hist));\n        var loClear = !loWarn || (val > (loWarn + hist));\n\n        if (hiClear && loClear) {\n            meta.action = \"ClearAlarm\";\n            events.push({msg: msg, metadata: meta, msgType: msgType});\n        }\n    }\n}\n\n// 1. Humidity Check\nevalMetric(\n    parseFloat(metadata.rh), \n    parseFloat(metadata.rhHighCritical), parseFloat(metadata.rhLowCritical), \n    parseFloat(metadata.rhHighWarning), parseFloat(metadata.rhLowWarning), \n    parseFloat(metadata.rhHist || 0), \"RH\"\n);\n\n// 2. Temperature Check\nevalMetric(\n    parseFloat(metadata.temp), \n    parseFloat(metadata.tempHighCritical), parseFloat(metadata.tempLowCritical), \n    parseFloat(metadata.tempHighWarning), parseFloat(metadata.tempLowWarning), \n    parseFloat(metadata.tempHist || 0), \"Temperature\"\n);\n\n// 3. Battery Check\nevalMetric(\n    parseFloat(metadata.battery), \n    null, parseFloat(metadata.batteryLowCritical), \n    null, parseFloat(metadata.batteryLowWarning), \n    parseFloat(metadata.battHist || 0), \"Battery\"\n);\n\nreturn events;",
+        "tbelScript" : "return {msg: msg, metadata: metadata, msgType: msgType};"
+      },
+      "configurationVersion" : 0,
+      "createdTime" : 0,
+      "debugSettings" : null,
+      "externalId" : null,
+      "id" : {
+        "entityType" : "RULE_NODE",
+        "id" : "37da8de0-aa7d-11f1-9f5e-ebe16f79bb58"
+      },
+      "name" : "Master Evaluator",
+      "queueName" : null,
+      "ruleChainId" : null,
+      "singletonMode" : false,
+      "type" : "org.thingsboard.rule.engine.transform.TbTransformMsgNode"
+    }, {
+      "additionalInfo" : {
+        "description" : "",
+        "layoutX" : 1926,
+        "layoutY" : 9
+      },
+      "configuration" : {
+        "forwardMsgToDefaultRuleChain" : false,
+        "ruleChainId" : "da297740-ab50-11f1-9f5e-ebe16f79bb58"
+      },
+      "configurationVersion" : 1,
+      "createdTime" : 0,
+      "debugSettings" : null,
+      "externalId" : null,
+      "id" : {
+        "entityType" : "RULE_NODE",
+        "id" : "a17fe450-ab51-11f1-9f5e-ebe16f79bb58"
+      },
+      "name" : "Send Alert Email",
+      "queueName" : null,
+      "ruleChainId" : null,
+      "singletonMode" : false,
+      "type" : "org.thingsboard.rule.engine.flow.TbRuleChainInputNode"
+    }, {
+      "additionalInfo" : {
+        "description" : "",
+        "layoutX" : 1926,
+        "layoutY" : 150
+      },
+      "configuration" : {
+        "forwardMsgToDefaultRuleChain" : false,
+        "ruleChainId" : "aa7f9880-b168-11f1-8055-19de3a92853c"
+      },
+      "configurationVersion" : 1,
+      "createdTime" : 0,
+      "debugSettings" : null,
+      "externalId" : null,
+      "id" : {
+        "entityType" : "RULE_NODE",
+        "id" : "da689c40-b168-11f1-8055-19de3a92853c"
+      },
+      "name" : "SEND FCM Alarm",
+      "queueName" : null,
+      "ruleChainId" : null,
+      "singletonMode" : false,
+      "type" : "org.thingsboard.rule.engine.flow.TbRuleChainInputNode"
+    } ],
+    "ruleChainConnections" : null
+  },
+  "relations" : [ {
+    "additionalInfo" : null,
+    "from" : {
+      "entityType" : "RULE_CHAIN",
+      "id" : "92da2e30-a9ab-11f1-9663-1fc19e23cbce"
+    },
+    "to" : {
+      "entityType" : "RULE_CHAIN",
+      "id" : "aa7f9880-b168-11f1-8055-19de3a92853c"
+    },
+    "type" : "Uses",
+    "typeGroup" : "COMMON",
+    "version" : 2942
+  }, {
+    "additionalInfo" : null,
+    "from" : {
+      "entityType" : "RULE_CHAIN",
+      "id" : "92da2e30-a9ab-11f1-9663-1fc19e23cbce"
+    },
+    "to" : {
+      "entityType" : "RULE_CHAIN",
+      "id" : "da297740-ab50-11f1-9f5e-ebe16f79bb58"
+    },
+    "type" : "Uses",
+    "typeGroup" : "COMMON",
+    "version" : 2944
+  }, {
+    "additionalInfo" : null,
+    "from" : {
+      "entityType" : "RULE_CHAIN",
+      "id" : "345eed50-a109-11f1-b530-9b9631e0c365"
+    },
+    "to" : {
+      "entityType" : "RULE_CHAIN",
+      "id" : "92da2e30-a9ab-11f1-9663-1fc19e23cbce"
+    },
+    "type" : "Uses",
+    "typeGroup" : "COMMON",
+    "version" : 1823
+  } ],
+  "attributes" : {
+    "SERVER_SCOPE" : [ ]
+  }
+}

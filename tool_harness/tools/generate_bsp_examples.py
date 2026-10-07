@@ -1,0 +1,700 @@
+#!/usr/bin/env python3
+"""
+Automated BSP Example Generator & Compiler Validation Pipeline.
+Iterates over ESP32-S3 BSP header files, prompts Gemini via Google's official GenAI SDK (from google import genai / from google.cloud)
+for isolated reference examples, and iterates against compiler feedback until clean builds are achieved.
+
+Includes model listing (--list-models) and token usage statistics tracking (--show-usage).
+"""
+
+import os
+import re
+import sys
+import argparse
+import datetime
+import subprocess
+import warnings
+from pathlib import Path
+from functools import partial
+
+# Suppress SDK warnings (e.g. AFC deprecation warnings from google-genai)
+warnings.filterwarnings("ignore", category=UserWarning)
+
+# Override print to ensure immediate unbuffered output to stdout
+print = partial(print, flush=True)
+
+
+class TeeLogger:
+    """Tee output stream that writes simultaneously to terminal stdout and persistent log files."""
+    def __init__(self, log_path: Path):
+        self.terminal = sys.stdout
+        self.log_path = log_path
+        self.log_path.parent.mkdir(parents=True, exist_ok=True)
+        self.log_file = open(self.log_path, "a", encoding="utf-8", buffering=1)
+
+        latest_path = self.log_path.parent / "latest_run.log"
+        self.latest_file = open(latest_path, "w", encoding="utf-8", buffering=1)
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.terminal.flush()
+        self.log_file.write(message)
+        self.log_file.flush()
+        self.latest_file.write(message)
+        self.latest_file.flush()
+
+    def flush(self):
+        self.terminal.flush()
+        self.log_file.flush()
+        self.latest_file.flush()
+
+    def close(self):
+        self.log_file.close()
+        self.latest_file.close()
+
+# Google SDK Imports
+GENAI_AVAILABLE = False
+VERTEX_AVAILABLE = False
+
+try:
+    from google import genai
+    from google.genai import types
+    GENAI_AVAILABLE = True
+except ImportError:
+    pass
+
+try:
+    from google.cloud import aiplatform
+    VERTEX_AVAILABLE = True
+except ImportError:
+    pass
+
+
+SYSTEM_INSTRUCTION = """\
+You are an expert embedded firmware engineer writing unit-level hardware examples for ESP32-S3 BSP.
+Rules you must strictly follow:
+1. Use ONLY function prototypes, macros, types, and enums declared in the provided header file and pinout.h.
+2. NEVER guess, invent, or extrapolate peripheral APIs.
+3. Every API call returning an error code (e.g., esp_err_t) MUST be wrapped in ESP_ERROR_CHECK() or checked explicitly.
+4. Keep the example focused solely on the peripheral declared in the header. Keep it under 150 lines.
+5. Provide ONLY valid C code inside code fences.
+6. Always include BSP headers using the 'bsp/' subdirectory prefix (e.g., #include "bsp/bsp.h", #include "bsp/pinout.h", #include "bsp/bsp_display.h"). NEVER use `#include "bsp.h"` without the `bsp/` prefix.
+"""
+
+INITIAL_PROMPT_TEMPLATE = """\
+Generate a standalone reference example for the following BSP peripheral header:
+
+Header File: {header_name}
+```c
+{header_content}
+```
+
+{source_section}
+
+{ref_example_section}
+
+Requirements:
+- Target function: app_main(void)
+- Perform necessary system/power initialization before peripheral access.
+- Execute one clear, observable peripheral action.
+- Log events cleanly via ESP_LOGI or printf.
+- Terminate or idle safely (e.g. vTaskDelete(NULL) or vTaskDelay).
+"""
+
+FIX_PROMPT_TEMPLATE = """\
+The code you generated failed to compile.
+
+Compiler Diagnostic Output:
+```
+{compiler_errors}
+```
+
+Original Broken Source Code:
+```c
+{broken_code}
+```
+
+Header File Reference:
+```c
+{header_content}
+```
+
+Fix the errors. Ensure all types, parameters, and signatures strictly match the header.
+Return the entire updated, compilable C source code inside a ```c block.
+"""
+
+
+class TokenUsageTracker:
+    """Tracks cumulative prompt, candidate (response), and total token counts across API requests."""
+    def __init__(self):
+        self.requests_count = 0
+        self.total_prompt_tokens = 0
+        self.total_candidate_tokens = 0
+        self.total_tokens = 0
+
+    def record_usage(self, usage_metadata):
+        if not usage_metadata:
+            return
+        self.requests_count += 1
+        prompt = getattr(usage_metadata, "prompt_token_count", 0) or 0
+        candidate = getattr(usage_metadata, "candidates_token_count", 0) or 0
+        total = getattr(usage_metadata, "total_token_count", 0) or (prompt + candidate)
+
+        self.total_prompt_tokens += prompt
+        self.total_candidate_tokens += candidate
+        self.total_tokens += total
+        return prompt, candidate, total
+
+    def print_summary(self):
+        print("\n==================================================")
+        print("  GEMINI API TOKEN USAGE SUMMARY REPORT")
+        print("==================================================")
+        print(f" Total API Requests Executed : {self.requests_count}")
+        print(f" Total Prompt Tokens         : {self.total_prompt_tokens:,}")
+        print(f" Total Candidate Tokens      : {self.total_candidate_tokens:,}")
+        print(f" Combined Total Tokens Used  : {self.total_tokens:,}")
+        print("==================================================")
+
+
+def extract_c_code(response_text: str) -> str:
+    """Extracts raw C code from markdown code fences."""
+    match = re.search(r"```(?:c|cpp)?\s*(.*?)\s*```", response_text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return response_text.strip()
+
+
+def compile_project(build_cmd, working_dir: Path) -> tuple[bool, str]:
+    """Runs the build system command and captures diagnostics."""
+    try:
+        cmd_input = " ".join(build_cmd) if isinstance(build_cmd, list) else build_cmd
+        proc = subprocess.run(
+            cmd_input,
+            cwd=working_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=180,
+            check=False,
+            shell=True,
+        )
+        return proc.returncode == 0, proc.stdout
+    except subprocess.TimeoutExpired:
+        return False, "Build timed out after 180 seconds."
+    except Exception as exc:
+        return False, f"Failed to execute build command: {exc}"
+
+
+def filter_compiler_errors(build_output: str, max_lines: int = 40) -> str:
+    """Isolates compiler error lines to keep context tight for the LLM."""
+    lines = build_output.splitlines()
+    error_lines = [line for line in lines if "error:" in line.lower() or "undefined reference" in line.lower()]
+    if not error_lines:
+        return "\n".join(lines[-max_lines:])
+    return "\n".join(error_lines[:max_lines])
+
+
+_LAST_API_CALL_TIME = 0.0
+
+
+def call_gemini_with_retry(client, model: str, contents, config, max_retries: int = 3, min_delay: float = 12.0, verbose: bool = False):
+    """Executes client.models.generate_content with strict pacing delay, 503/429 backoff, and model fallbacks."""
+    import time
+    global _LAST_API_CALL_TIME
+
+    # Enforce minimum delay between ANY two API calls to prevent 429 rate limits
+    now = time.time()
+    elapsed = now - _LAST_API_CALL_TIME
+    if min_delay > 0 and _LAST_API_CALL_TIME > 0 and elapsed < min_delay:
+        sleep_dur = min_delay - elapsed
+        print(f" [PACING] Pausing {sleep_dur:.1f}s for 5 RPM rate limit...")
+        time.sleep(sleep_dur)
+
+    clean_model = model.replace("models/", "")
+    fallback_chain = [model]
+
+    # Triaged 16-model fallback list prioritizing high-capacity, fast, and high-intelligence endpoints
+    triaged_fallback_models = (
+        "gemini-3.6-flash",          # Tier 1: Fast & smart default
+        "gemini-2.5-flash",          # Tier 1: Maximum stability & capacity
+        "gemini-3.8-flash",          # Tier 1: Latest reasoning Flash
+        "gemini-3.7-flash",          # Tier 1: High capability Flash
+        "gemini-3.5-flash",          # Tier 1: Proven Flash model
+        "gemini-3.1-pro-preview",    # Tier 2: High intelligence Pro model
+        "gemini-2.5-pro",            # Tier 2: Stable flagship Pro model
+        "gemini-flash-latest",       # Pointer: Always latest Flash pointer
+        "gemini-pro-latest",         # Pointer: Always latest Pro pointer
+        "gemini-3.1-flash-lite",     # Tier 3: Ultra-fast Lite model
+        "gemini-3.5-flash-lite",     # Tier 3: Lightweight 3.5 Flash
+        "gemini-2.5-flash-lite",     # Tier 3: Lightweight 2.5 Flash
+        "gemini-flash-lite-latest",  # Pointer: Always latest Lite pointer
+        "gemini-3-flash-preview",    # Tier 4: Gemini 3 Flash preview
+        "gemma-4-31b-it",            # Open Model: Gemma 4 31B Instruction-tuned
+        "gemma-4-26b-a4b-it",        # Open Model: Gemma 4 26B Instruction-tuned
+    )
+
+    for alt in triaged_fallback_models:
+        if alt not in fallback_chain and alt != clean_model:
+            fallback_chain.append(alt)
+
+    for target_model in fallback_chain:
+        for attempt in range(1, max_retries + 1):
+            try:
+                _LAST_API_CALL_TIME = time.time()
+                response = client.models.generate_content(
+                    model=target_model,
+                    contents=contents,
+                    config=config,
+                )
+                return response
+            except Exception as exc:
+                err_str = str(exc).lower()
+                is_transient = any(k in err_str for k in ("503", "unavailable", "429", "rate", "overloaded", "resource_exhausted", "quota"))
+                is_not_found = any(k in err_str for k in ("404", "not_found", "no longer available", "invalid model"))
+
+                if is_transient and attempt < max_retries:
+                    wait_sec = attempt * 15
+                    print(f" [503/429 BUSY] Model '{target_model}' rate-limited or busy. Retrying in {wait_sec}s (Attempt {attempt}/{max_retries})...")
+                    time.sleep(wait_sec)
+                elif (is_transient or is_not_found) and target_model != fallback_chain[-1]:
+                    print(f" [API FALLBACK] Model '{target_model}' failed ({'Not Found' if is_not_found else 'Busy'}). Switching to fallback model...")
+                    break
+                else:
+                    if verbose:
+                        import traceback
+                        print(f" [FATAL API ERROR] ({target_model} attempt {attempt}): {exc}")
+                        traceback.print_exc()
+                    raise exc
+    raise RuntimeError(f"Failed to generate content with model {model} and all fallback options.")
+
+
+def initialize_genai_client(api_key: str = "", use_vertex: bool = False, project: str = "", location: str = "us-central1"):
+    """Initializes and returns the official Google GenAI Client with API key or Vertex AI mode."""
+    if not GENAI_AVAILABLE:
+        sys.exit("Error: 'google-genai' SDK is not installed. Install via: pip install google-genai")
+
+    if use_vertex:
+        project_id = project or os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJECT")
+        if not project_id:
+            sys.exit("Error: Vertex AI mode requires a Google Cloud project ID (pass --project or set GOOGLE_CLOUD_PROJECT env var).")
+        print(f"[AUTH] Initializing Google GenAI Client (Vertex AI mode) - Project: {project_id}, Location: {location}")
+        return genai.Client(vertexai=True, project=project_id, location=location)
+    else:
+        key = api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        if not key:
+            sys.exit("Error: GEMINI_API_KEY environment variable is not set. Set GEMINI_API_KEY or pass --api-key.")
+        print("[AUTH] Initializing Google GenAI Client (Developer API mode)")
+        return genai.Client(api_key=key)
+
+
+def list_available_models(client):
+    """Queries and displays available Gemini models from the Google API."""
+    print("\n==================================================")
+    print("  AVAILABLE GEMINI MODELS")
+    print("==================================================")
+    try:
+        models = list(client.models.list())
+        for m in models:
+            name = getattr(m, "name", str(m))
+            disp_name = getattr(m, "display_name", "")
+            print(f" - {name:<35} | {disp_name}")
+    except Exception as exc:
+        print(f"Error querying model list: {exc}")
+    print("==================================================\n")
+
+
+def setup_example_project_scaffolding(proj_dir: Path, header_stem: str, template_dir: Path = None):
+    """Creates standard standalone ESP-IDF project structure inside proj_dir."""
+    main_dir = proj_dir / "main"
+    main_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. Root CMakeLists.txt
+    root_cmakelists = proj_dir / "CMakeLists.txt"
+    if not root_cmakelists.exists():
+        root_cmakelists.write_text(
+            f'cmake_minimum_required(VERSION 3.16)\n\n'
+            f'# Set custom components directory to locate local BSP component\n'
+            f'set(EXTRA_COMPONENT_DIRS "../../components")\n\n'
+            f'include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)\n'
+            f'project({header_stem}_example)\n',
+            encoding="utf-8",
+        )
+
+    # 2. main/CMakeLists.txt
+    main_cmakelists = main_dir / "CMakeLists.txt"
+    if not main_cmakelists.exists():
+        main_cmakelists.write_text(
+            'idf_component_register(\n'
+            '    SRCS "main.c"\n'
+            '    INCLUDE_DIRS "."\n'
+            '    REQUIRES\n'
+            '        esp32-s3_bsp\n'
+            '        esp_driver_gpio\n'
+            '        esp_timer\n'
+            '        freertos\n'
+            '        log\n'
+            '        nvs_flash\n'
+            '        lvgl\n'
+            ')\n',
+            encoding="utf-8",
+        )
+
+    # 3. main/idf_component.yml
+    component_yml = main_dir / "idf_component.yml"
+    if not component_yml.exists():
+        component_yml.write_text(
+            'dependencies:\n'
+            '  idf: ">=5.1"\n'
+            '  lvgl/lvgl: "==9.6.0"\n'
+            '  espressif/esp_codec_dev: "^1.6.2"\n'
+            '  espressif/esp_mmap_assets: "^2.0.1"\n'
+            '  espressif/esp_lv_fs: "^1.0.1"\n'
+            '  espressif/mqtt: "^1.0.0"\n'
+            '  espressif/network_provisioning: "^1.2.5"\n'
+            '  espressif/cjson: "^1.7.19"\n'
+            '  esp32-s3_bsp:\n'
+            '    path: "../../../components/esp32-s3_bsp"\n',
+            encoding="utf-8",
+        )
+
+    # 4. Copy sdkconfig.defaults, partitions.csv, and sdkconfig if available
+    if template_dir and template_dir.exists():
+        import shutil
+        for fname in ("partitions.csv", "sdkconfig.defaults", "sdkconfig"):
+            src_file = template_dir / fname
+            target_file = proj_dir / fname
+            if src_file.exists():
+                shutil.copy2(src_file, target_file)
+
+    # 5. Root .gitignore for each example project
+    gitignore_file = proj_dir / ".gitignore"
+    if not gitignore_file.exists():
+        gitignore_file.write_text(
+            '# ESP-IDF Generated Artifacts & Dependencies\n'
+            'build/\n'
+            'managed_components/\n'
+            'dependencies.lock\n'
+            'sdkconfig\n'
+            'sdkconfig.old\n'
+            '*.bak\n',
+            encoding="utf-8",
+        )
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Batch generate and compile BSP examples using Google GenAI SDK.")
+    parser.add_argument(
+        "--headers-dir",
+        type=Path,
+        default=Path(r"C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\components\esp32-s3_bsp\include\bsp"),
+        help="Directory containing BSP .h files",
+    )
+    parser.add_argument(
+        "--sources-dir",
+        type=Path,
+        default=Path(r"C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\components\esp32-s3_bsp\src"),
+        help="Optional directory containing corresponding BSP .c implementation files",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path(r"C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\examples"),
+        help="Destination directory for verified example projects",
+    )
+    parser.add_argument(
+        "--test-runner-file",
+        type=Path,
+        default=Path(r"C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\examples\Peripherals_Test_Suite\main\main.c"),
+        help="Reference project template directory (e.g. Peripherals_Test_Suite)",
+    )
+    parser.add_argument(
+        "--build-cmd",
+        type=str,
+        default="idf.py build",
+        help="Build command to execute for compilation verification",
+    )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=3,
+        help="Maximum self-correction compile attempts per header",
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="gemini-3.6-flash",
+        help="Gemini model ID to use (default: gemini-3.6-flash)",
+    )
+    parser.add_argument(
+        "--api-key",
+        type=str,
+        default="",
+        help="Google Gemini API key (or set GEMINI_API_KEY env var)",
+    )
+    parser.add_argument(
+        "--use-vertex",
+        action="store_true",
+        help="Use Google Cloud Vertex AI mode instead of Developer API",
+    )
+    parser.add_argument(
+        "--project",
+        type=str,
+        default="",
+        help="Google Cloud Project ID (required for --use-vertex)",
+    )
+    parser.add_argument(
+        "--location",
+        type=str,
+        default="us-central1",
+        help="Google Cloud Vertex AI region (default: us-central1)",
+    )
+    parser.add_argument(
+        "--list-models",
+        action="store_true",
+        help="List all available Gemini models and exit",
+    )
+    parser.add_argument(
+        "--show-usage",
+        action="store_true",
+        help="Display detailed token usage statistics after generation",
+    )
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=12.0,
+        help="Delay in seconds between API calls to respect 5 RPM rate limit (default: 12.0s)",
+    )
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Enable verbose output (shows full compiler build logs, generated code, and API tracebacks)",
+    )
+    parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="Skip generation if an example project directory already exists for a header",
+    )
+    parser.add_argument(
+        "--log-dir",
+        type=Path,
+        default=Path(r"C:\Users\Matt\Documents\GitHub\assets\tool_harness\run_log"),
+        help="Directory to store persistent run log files (default: run_log/)",
+    )
+    parser.add_argument(
+        "--log-file",
+        type=Path,
+        default=None,
+        help="Explicit path to a log file (default: timestamped file inside log-dir)",
+    )
+    args = parser.parse_args()
+
+    # Initialize persistent TeeLogger for global run logging
+    timestamp_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file_path = args.log_file or (args.log_dir / f"run_{timestamp_str}.log")
+    logger = TeeLogger(log_file_path)
+    sys.stdout = logger
+    sys.stderr = logger
+    print(f"[LOG] Run log initialized: {log_file_path}")
+
+    client = initialize_genai_client(
+        api_key=args.api_key,
+        use_vertex=args.use_vertex,
+        project=args.project,
+        location=args.location,
+    )
+
+    if args.list_models:
+        list_available_models(client)
+        return
+
+    if not args.headers_dir.is_dir():
+        sys.exit(f"Error: Headers directory '{args.headers_dir}' not found.")
+
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    build_cmd_list = args.build_cmd.split()
+    usage_tracker = TokenUsageTracker()
+
+    try:
+        headers = sorted(args.headers_dir.glob("*.h"))
+        if not headers:
+            print(f"No .h files found in {args.headers_dir}")
+            return
+
+        print(f"[START] Processing {len(headers)} BSP headers from {args.headers_dir}...")
+
+        template_dir = args.test_runner_file.parent.parent if args.test_runner_file and args.test_runner_file.parent.parent.exists() else None
+
+        for header_path in headers:
+            header_name = header_path.name
+            header_stem = header_path.stem
+            proj_name = f"{header_stem}_example"
+            proj_dir = args.output_dir / proj_name
+
+            print(f"\n==================================================")
+            print(f"Processing Subsystem: {header_name} -> Project: {proj_name}")
+            print(f"==================================================")
+
+            # Set up standalone project scaffolding inside output-dir/proj_name/
+            target_main_c = proj_dir / "main" / "main.c"
+            if args.skip_existing and target_main_c.exists() and target_main_c.stat().st_size > 0:
+                print(f" [SKIP] Project '{proj_name}' already exists ({target_main_c}). Skipping...")
+                continue
+
+            setup_example_project_scaffolding(proj_dir, header_stem, template_dir=template_dir)
+
+            header_content = header_path.read_text(encoding="utf-8")
+
+            # Check for matching implementation source file
+            source_section = ""
+            if args.sources_dir and args.sources_dir.exists():
+                candidate_src = args.sources_dir / f"{header_path.stem}.c"
+                if candidate_src.exists():
+                    src_content = candidate_src.read_text(encoding="utf-8", errors="ignore")
+                    source_section = f"Matching Implementation Source File ({candidate_src.name}):\n```c\n{src_content}\n```\n"
+            # Ingest Reference Suite Example Code (main.c / main.cpp) for context
+            ref_example_section = ""
+            if args.test_runner_file and args.test_runner_file.exists():
+                ref_code = args.test_runner_file.read_text(encoding="utf-8", errors="ignore")
+                ref_example_section = f"Reference Example Implementation Suite ({args.test_runner_file.name}):\n```c\n{ref_code}\n```\n"
+                print(f" [INFO] Ingested reference example context: {args.test_runner_file.name}")
+
+            try:
+                # Phase 1: Initial Generation
+                prompt = INITIAL_PROMPT_TEMPLATE.format(
+                    header_name=header_name,
+                    header_content=header_content,
+                    source_section=source_section,
+                    ref_example_section=ref_example_section,
+                )
+
+                print(f" [API] Sending initial prompt to Gemini ({args.model})...")
+                response = call_gemini_with_retry(
+                    client=client,
+                    model=args.model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=SYSTEM_INSTRUCTION,
+                        temperature=0.2,
+                    ),
+                    min_delay=args.delay,
+                    verbose=args.verbose,
+                )
+
+                usage = usage_tracker.record_usage(getattr(response, "usage_metadata", None))
+                if usage and args.show_usage:
+                    print(f" [TOKENS] Initial Turn: Prompt={usage[0]}, Candidate={usage[1]}, Total={usage[2]}")
+
+                current_code = extract_c_code(response.text)
+                if args.verbose:
+                    print("\n--- GENERATED CODE (INITIAL) ---")
+                    print(current_code)
+                    print("--------------------------------\n")
+                success = False
+
+                # Phase 2: Compiler Verification & Self-Correction Loop
+                proj_build_log_lines = [
+                    f"==================================================",
+                    f"BUILD VALIDATION REPORT: {proj_name}",
+                    f"Subsystem Header: {header_name}",
+                    f"Timestamp: {datetime.datetime.now().isoformat()}",
+                    f"==================================================\n",
+                ]
+
+                for attempt in range(1, args.max_retries + 1):
+                    print(f" -> Compilation Attempt {attempt}/{args.max_retries}...")
+                    print(f" [BUILD] Executing '{args.build_cmd}' inside {proj_dir.name}...")
+
+                    target_main_c.write_text(current_code, encoding="utf-8")
+
+                    compiled_ok, build_log = compile_project(build_cmd_list, proj_dir)
+
+                    proj_build_log_lines.append(f"\n--- Attempt {attempt}/{args.max_retries} ---")
+                    proj_build_log_lines.append(f"Result: {'PASS' if compiled_ok else 'FAIL'}")
+                    proj_build_log_lines.append("Build Output Log:")
+                    proj_build_log_lines.append(build_log)
+
+                    if compiled_ok:
+                        print(f" [PASS] Clean build succeeded on attempt {attempt}!")
+                        if args.verbose:
+                            print("\n--- FULL BUILD LOG (SUCCESS) ---")
+                            print(build_log)
+                            print("--------------------------------\n")
+                        success = True
+                        break
+
+                    print(f" [FAIL] Build failed. Extracting diagnostics...")
+                    diagnostics = filter_compiler_errors(build_log)
+                    proj_build_log_lines.append("\nExtracted Compiler Diagnostics:")
+                    proj_build_log_lines.append(diagnostics)
+
+                    if args.verbose:
+                        print("\n--- FULL BUILD LOG (FAILURE) ---")
+                        print(build_log)
+                        print("--------------------------------\n")
+                    else:
+                        print(f"Diagnostics preview:\n{diagnostics[:300]}...\n")
+
+                    if attempt == args.max_retries:
+                        print(f" [ABORT] Exceeded max retries for {header_name}.")
+                        break
+
+                    fix_prompt = FIX_PROMPT_TEMPLATE.format(
+                        compiler_errors=diagnostics,
+                        broken_code=current_code,
+                        header_content=header_content,
+                    )
+
+                    fix_response = call_gemini_with_retry(
+                        client=client,
+                        model=args.model,
+                        contents=fix_prompt,
+                        config=types.GenerateContentConfig(
+                            system_instruction=SYSTEM_INSTRUCTION,
+                            temperature=0.1,
+                        ),
+                        min_delay=args.delay,
+                        verbose=args.verbose,
+                    )
+                    fix_usage = usage_tracker.record_usage(getattr(fix_response, "usage_metadata", None))
+                    if fix_usage and args.show_usage:
+                        print(f" [TOKENS] Retry {attempt}: Prompt={fix_usage[0]}, Candidate={fix_usage[1]}, Total={fix_usage[2]}")
+
+                    current_code = extract_c_code(fix_response.text)
+                    if args.verbose:
+                        print(f"\n--- GENERATED CODE (RETRY {attempt}) ---")
+                        print(current_code)
+                        print("----------------------------------------\n")
+
+                # Save per-project build validation log
+                (proj_dir / "build_validation.log").write_text("\n".join(proj_build_log_lines), encoding="utf-8")
+
+                # Phase 3: Save generated example
+                if success:
+                    print(f" [SAVED] Verified standalone project ready at: {proj_dir}")
+                else:
+                    print(f" [FAILED] Saved candidate code in {proj_dir}/main/main.c for inspection")
+
+            except Exception as header_exc:
+                print(f" [ERROR] API call failed for {header_name}: {header_exc}")
+                if args.verbose:
+                    import traceback
+                    traceback.print_exc()
+                print(f" [SKIP] Skipping {header_name} and continuing with remaining headers...")
+
+            if args.delay > 0 and header_path != headers[-1]:
+                import time
+                print(f" [PACING] Pausing {args.delay}s to respect 5 RPM rate limit...")
+                time.sleep(args.delay)
+
+    finally:
+        if args.show_usage:
+            usage_tracker.print_summary()
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n\n[CANCELLED] Script execution stopped by user.")
+        sys.exit(0)
