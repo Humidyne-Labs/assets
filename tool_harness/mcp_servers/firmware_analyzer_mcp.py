@@ -40,17 +40,37 @@ mcp = FastMCP("Firmware-Analyzer-Server")
 DEFAULT_PROJECT_ROOT = Path(os.environ.get("BSP_BUILD_ROOT", r"C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\examples\Peripherals_Test_Suite")).resolve()
 
 
-def _find_build_dir(project_path: str = "") -> Path:
+def _get_project_root(project_path: str = "") -> Path:
     if project_path:
         p = Path(project_path).resolve()
-        if (p / "build").exists():
-            return p / "build"
-        if p.name == "build" and p.exists():
+        if p.exists():
             return p
-    default_build = DEFAULT_PROJECT_ROOT / "build"
-    if default_build.exists():
-        return default_build
-    return default_build
+    env_root = os.environ.get("BSP_BUILD_ROOT")
+    if env_root and Path(env_root).exists():
+        return Path(env_root).resolve()
+
+    cwd = Path.cwd().resolve()
+    candidates = [
+        cwd / "examples" / "H1OS",
+        cwd / "examples" / "Peripherals_Test_Suite",
+        cwd,
+        Path(r"C:\Users\Matt\Documents\GitHub\H1OS\examples\H1OS"),
+        Path(r"C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\examples\Peripherals_Test_Suite"),
+    ]
+    for c in candidates:
+        if (c / "CMakeLists.txt").exists():
+            return c
+    return DEFAULT_PROJECT_ROOT
+
+
+def _find_build_dir(project_path: str = "") -> Path:
+    root = _get_project_root(project_path)
+    for name in ["build_prod", "build_dev", "build"]:
+        if (root / name).exists():
+            return root / name
+    if root.name in ["build", "build_prod", "build_dev"] and root.exists():
+        return root
+    return root / "build"
 
 
 @mcp.tool()

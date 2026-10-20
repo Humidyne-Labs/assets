@@ -83,6 +83,8 @@ def _discover_export_script(custom_export_path: str = "", custom_idf_path: str =
 
     # 5. Fallback candidate paths
     candidates = [
+        Path(r"C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1"),
+        Path(r"C:\esp\v6.1\esp-idf\export.ps1"),
         Path(r"C:\esp\v6.1\esp-idf\export.bat"),
         Path(r"C:\esp\v5.3\esp-idf\export.bat"),
         Path(r"C:\esp\v5.1\esp-idf\export.bat"),
@@ -188,7 +190,35 @@ def _get_project_root(project_path: str = "") -> Path:
         p = Path(project_path).resolve()
         if p.exists():
             return p
+    env_root = os.environ.get("BSP_BUILD_ROOT")
+    if env_root and Path(env_root).exists():
+        return Path(env_root).resolve()
+
+    # Search common candidate project locations dynamically:
+    cwd = Path.cwd().resolve()
+    candidates = [
+        cwd / "examples" / "H1OS",
+        cwd / "examples" / "Peripherals_Test_Suite",
+        cwd,
+        Path(r"C:\Users\Matt\Documents\GitHub\H1OS\examples\H1OS"),
+        Path(r"C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\examples\Peripherals_Test_Suite"),
+    ]
+    for c in candidates:
+        if (c / "CMakeLists.txt").exists():
+            return c
     return DEFAULT_PROJECT_ROOT
+
+
+def _run_idf_command(args: list[str], root: Path, env_map: dict) -> subprocess.CompletedProcess:
+    ps_profile = Path(r"C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1")
+    if sys.platform == "win32" and ps_profile.exists():
+        args_str = " ".join(args)
+        ps_cmd = f'& "{ps_profile}"; idf.py {args_str}'
+        cmd = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_cmd]
+        return subprocess.run(cmd, cwd=root, capture_output=True, text=True, env=env_map)
+    else:
+        cmd = ["idf.py"] + args
+        return subprocess.run(cmd, cwd=root, capture_output=True, text=True, shell=True, env=env_map)
 
 
 def _filter_errors(build_log: str) -> list[str]:
@@ -198,24 +228,33 @@ def _filter_errors(build_log: str) -> list[str]:
 
 
 @mcp.tool()
-def trigger_idf_build(project_path: str = "", target: str = "esp32s3") -> dict:
+def trigger_idf_build(project_path: str = "", target: str = "esp32s3", build_dir: str = "") -> dict:
     """Executes 'idf.py build' on the target ESP32-S3 BSP or user application repository.
     Automatically initializes ESP-IDF environment variables before compilation if not yet set up.
     Returns build status, pass/fail state, and line-numbered compiler error diagnostics.
+
+    Args:
+        project_path: Optional path to project root (defaults to auto-detected workspace).
+        target: Target chip architecture (default: esp32s3).
+        build_dir: Optional build directory name (e.g. 'build_prod', 'build_dev').
     """
     env_map = _ensure_env()
     root = _get_project_root(project_path)
     if not (root / "CMakeLists.txt").exists():
         return {"status": "error", "message": f"No CMakeLists.txt found in project root {root}."}
 
-    cmd = ["idf.py", "build"]
-    res = subprocess.run(cmd, cwd=root, capture_output=True, text=True, shell=True, env=env_map)
+    args = []
+    if build_dir:
+        args.extend(["-B", build_dir])
+    args.append("build")
+
+    res = _run_idf_command(args, root, env_map)
 
     if res.returncode == 0:
         return {
             "status": "success",
-            "message": "IDF build completed cleanly with exit code 0.",
-            "stdout_summary": res.stdout[-1000:]
+            "message": f"IDF build completed cleanly with exit code 0 ({root}).",
+            "stdout_summary": res.stdout[-1500:]
         }
 
     errors = _filter_errors(res.stdout + "\n" + res.stderr)
@@ -228,14 +267,21 @@ def trigger_idf_build(project_path: str = "", target: str = "esp32s3") -> dict:
 
 
 @mcp.tool()
-def get_idf_size(project_path: str = "") -> dict:
+def get_idf_size(project_path: str = "", build_dir: str = "") -> dict:
     """Executes 'idf.py size' to return component-by-component memory size breakdown.
     Automatically initializes ESP-IDF environment variables if needed.
+
+    Args:
+        project_path: Optional path to project root.
+        build_dir: Optional build directory name (e.g. 'build_prod', 'build_dev').
     """
     env_map = _ensure_env()
     root = _get_project_root(project_path)
-    cmd = ["idf.py", "size"]
-    res = subprocess.run(cmd, cwd=root, capture_output=True, text=True, shell=True, env=env_map)
+    args = []
+    if build_dir:
+        args.extend(["-B", build_dir])
+    args.append("size")
+    res = _run_idf_command(args, root, env_map)
 
     if res.returncode == 0:
         return {
@@ -245,19 +291,26 @@ def get_idf_size(project_path: str = "") -> dict:
 
     return {
         "status": "error",
-        "message": f"idf.py size failed: {res.stderr}"
+        "message": f"idf.py size failed: {res.stderr or res.stdout}"
     }
 
 
 @mcp.tool()
-def reconfigure_idf_project(project_path: str = "") -> dict:
+def reconfigure_idf_project(project_path: str = "", build_dir: str = "") -> dict:
     """Executes 'idf.py reconfigure' to force CMake re-generation.
     Automatically initializes ESP-IDF environment variables if needed.
+
+    Args:
+        project_path: Optional path to project root.
+        build_dir: Optional build directory name (e.g. 'build_prod', 'build_dev').
     """
     env_map = _ensure_env()
     root = _get_project_root(project_path)
-    cmd = ["idf.py", "reconfigure"]
-    res = subprocess.run(cmd, cwd=root, capture_output=True, text=True, shell=True, env=env_map)
+    args = []
+    if build_dir:
+        args.extend(["-B", build_dir])
+    args.append("reconfigure")
+    res = _run_idf_command(args, root, env_map)
 
     return {
         "status": "success" if res.returncode == 0 else "error",
