@@ -39,7 +39,7 @@ _root_logger.addFilter(SuppressRPCValidationErrorFilter())
 
 mcp = FastMCP("IDF-Build-Server")
 
-DEFAULT_PROJECT_ROOT = Path(os.environ.get("BSP_BUILD_ROOT", r"C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\examples\Peripherals_Test_Suite")).resolve()
+DEFAULT_PROJECT_ROOT = Path(os.environ.get("BSP_BUILD_ROOT", r"C:\Users\Matt\Documents\GitHub\H1OS\examples\H1OS")).resolve()
 _IDF_ENV: dict | None = None
 
 
@@ -198,10 +198,8 @@ def _get_project_root(project_path: str = "") -> Path:
     cwd = Path.cwd().resolve()
     candidates = [
         cwd / "examples" / "H1OS",
-        cwd / "examples" / "Peripherals_Test_Suite",
         cwd,
         Path(r"C:\Users\Matt\Documents\GitHub\H1OS\examples\H1OS"),
-        Path(r"C:\Users\Matt\Documents\GitHub\esp32-s3_bsp\examples\Peripherals_Test_Suite"),
     ]
     for c in candidates:
         if (c / "CMakeLists.txt").exists():

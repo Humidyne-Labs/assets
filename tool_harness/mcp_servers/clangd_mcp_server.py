@@ -49,7 +49,7 @@ mcp = FastMCP("Clangd-LSP-Server")
 
 # Configuration Defaults
 DEFAULT_CLANGD_BIN = os.environ.get("CLANGD_PATH", r"C:\clang+llvm-18.1.8\bin\clangd.exe")
-DEFAULT_WORKSPACE_ROOT = Path(os.environ.get("WORKSPACE_ROOT", r"C:\Users\Matt\Documents\GitHub\esp32-s3_bsp")).resolve()
+DEFAULT_WORKSPACE_ROOT = Path(os.environ.get("WORKSPACE_ROOT", r"C:\Users\Matt\Documents\GitHub\H1OS")).resolve()
 
 
 class ClangdLSPClient:
@@ -71,12 +71,13 @@ class ClangdLSPClient:
     def _discover_compile_commands(self, root: Path) -> Optional[Path]:
         """Search common ESP-IDF build directories for compile_commands.json."""
         candidates = [
-            root / "examples" / "Unified_Environmental_Demo" / "build_dev",
-            root / "examples" / "Unified_Environmental_Demo" / "build",
-            root / "examples" / "Peripherals_Test_Suite" / "build_dev",
-            root / "examples" / "Peripherals_Test_Suite" / "build",
+            root / "examples" / "H1OS" / "build_dev",
+            root / "examples" / "H1OS" / "build_prod",
+            root / "examples" / "H1OS" / "build",
+            root / "examples" / "boilerplate" / "build",
             root / "build_dev",
             root / "build",
+            root / "build_prod",
         ]
         for c in candidates:
             if (c / "compile_commands.json").exists():

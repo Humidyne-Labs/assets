@@ -3,15 +3,6 @@
     "esp-component-registry": {
       "serverUrl": "https://components.espressif.com/mcp"
     },
-    "esp32-s3-bsp": {
-      "command": "python",
-      "args": [
-        "c:/Users/Matt/Documents/GitHub/assets/tool_harness/mcp_servers/bsp_mcp_server.py"
-      ],
-      "env": {
-        "BSP_ROOT": "C:\\Users\\Matt\\Documents\\GitHub\\esp32-s3_bsp"
-      }
-    },
     "espressif-documentation": {
       "serverUrl": "https://mcp.espressif.com/docs"
     },
@@ -21,7 +12,7 @@
         "c:/Users/Matt/Documents/GitHub/assets/tool_harness/mcp_servers/firmware_analyzer_mcp.py"
       ],
       "env": {
-        "BSP_ROOT": "C:\\Users\\Matt\\Documents\\GitHub\\esp32-s3_bsp"
+        "BSP_BUILD_ROOT": "C:\\Users\\Matt\\Documents\\GitHub\\H1OS\\examples\\H1OS"
       }
     },
     "idf-build": {
@@ -30,25 +21,7 @@
         "c:/Users/Matt/Documents/GitHub/assets/tool_harness/mcp_servers/idf_build_mcp_server.py"
       ],
       "env": {
-        "BSP_ROOT": "C:\\Users\\Matt\\Documents\\GitHub\\esp32-s3_bsp"
-      }
-    },
-    "lvgl-diff": {
-      "command": "python",
-      "args": [
-        "c:/Users/Matt/Documents/GitHub/assets/tool_harness/mcp_servers/lvgl_diff_mcp_server.py"
-      ],
-      "env": {
-        "LVGL_ROOT": "c:/Users/Matt/Documents/GitHub/assets/tool_harness/lvgl-9.6.0"
-      }
-    },
-    "lvgl-virtualization": {
-      "command": "python",
-      "args": [
-        "c:/Users/Matt/Documents/GitHub/assets/tool_harness/mcp_servers/lvgl_virt_mcp_server.py"
-      ],
-      "env": {
-        "LVGL_ROOT": "c:/Users/Matt/Documents/GitHub/assets/tool_harness/lvgl-9.6.0"
+        "BSP_BUILD_ROOT": "C:\\Users\\Matt\\Documents\\GitHub\\H1OS\\examples\\H1OS"
       }
     },
     "clangd": {
@@ -58,7 +31,7 @@
       ],
       "env": {
         "CLANGD_PATH": "C:\\clang+llvm-18.1.8\\bin\\clangd.exe",
-        "WORKSPACE_ROOT": "C:\\Users\\Matt\\Documents\\GitHub\\esp32-s3_bsp"
+        "WORKSPACE_ROOT": "C:\\Users\\Matt\\Documents\\GitHub\\H1OS"
       }
     },
     "graphify": {

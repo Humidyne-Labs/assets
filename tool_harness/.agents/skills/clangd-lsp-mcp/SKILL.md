@@ -27,7 +27,7 @@ Instead of relying on regex or plain-text searches, the Clangd MCP bridge uses L
 ### 1. Jump to Definition / Declaration (`clangd_get_definition`)
 Use when you need to find the exact definition or declaration of a function, struct, typedef, enum, or macro:
 * **Arguments**:
-  - `file_path`: Absolute or workspace-relative path (e.g. `components/esp32-s3_bsp/src/bsp_sensors.c`).
+  - `file_path`: Absolute or workspace-relative path (e.g. `components/h1os/src/sub_display.cpp`).
   - `line`: 1-indexed line number.
   - `character`: 1-indexed column position of the token.
 * **Return**: Exact file path, line, and column of the target definition.
