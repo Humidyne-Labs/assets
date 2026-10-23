@@ -16,13 +16,11 @@ tool_harness/
 │   └── mcp_config.json           # Unified MCP server config for Antigravity / Claude Desktop
 ├── mcp_servers/
 │   ├── bsp_mcp_server.py         # MCP server: ESP32-S3 BSP headers, sources & examples
-│   ├── lvgl_mcp_server.py        # MCP server: LVGL 9 headers, API & reference examples
-│   ├── lvgl_virt_mcp_server.py   # MCP server: Headless C compilation & PNG UI rendering
-│   ├── lvgl_diff_mcp_server.py   # MCP server: SSIM visual diff & layout regression tester
-│   ├── docs_mcp_server.py        # MCP server: Datasheets (PDF), markdown & text docs
-│   ├── docgen_mcp_server.py      # MCP server: Doxygen + Moxygen API doc generation
+│   ├── clangd_mcp_server.py      # MCP server: Clangd semantic C/C++ navigation & diagnostics
 │   ├── firmware_analyzer_mcp.py  # MCP server: Linker map memory footprint & symbol profiler
-│   └── idf_build_mcp_server.py   # MCP server: ESP-IDF build, size & compilation harness
+│   ├── idf_build_mcp_server.py   # MCP server: ESP-IDF build, size & compilation harness
+│   ├── lvgl_diff_mcp_server.py   # MCP server: SSIM visual diff & layout regression tester
+│   └── lvgl_virt_mcp_server.py   # MCP server: Headless C compilation & PNG UI rendering
 ├── tools/
 │   ├── generate_bsp_examples.py     # Gemini-driven BSP example generator & build validator
 │   ├── rebuild_all_examples.py     # Batch ESP-IDF example rebuilder & master build log generator

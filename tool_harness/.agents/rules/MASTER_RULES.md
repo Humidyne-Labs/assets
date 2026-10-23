@@ -4,7 +4,7 @@
 1. **Zero Guesswork Policy**: NEVER guess or extrapolate function signatures, enums, peripheral pins, or configuration structs.
 2. **Authoritative Sources First**: 
    - For BSP: Inspect `pinout.h` (`esp32-s3_bsp/components/esp32-s3_bsp/include/bsp/pinout.h`), module headers (`read_bsp_header`), and implementation source files (`read_bsp_source`) before writing calls.
-   - For LVGL 9: Use `get_lvgl_version` and `search_lvgl_api` before writing layout or widget code.
+   - For LVGL 9: Reference LVGL 9 APIs via official documentation and test layouts using `render_ui_snapshot` before committing code.
 3. **Strict Error Checking**: Every ESP-IDF / BSP API call returning `esp_err_t` MUST be wrapped in `ESP_ERROR_CHECK()` or handled explicitly.
 4. **Header & Source Discovery Protocol**:
    - Phase 1: Read target header files (`read_bsp_header`) and source files (`read_bsp_source`) to extract function prototypes, initialization sequences, and parameter types.
@@ -65,9 +65,10 @@
 
 ---
 
-## Documentation & Datasheet Access Protocols
-- Search datasheets and design notes using `search_docs_text` before implementing custom register read/writes or timing requirements.
-- Use `render_pdf_page_to_image` to inspect visual pinout diagrams, schematic pages, or hardware timing charts when text parsing is ambiguous.
+## Documentation & Code Navigation Protocols
+- Use semantic C/C++ navigation (`clangd_find_references`, `clangd_get_definition`, `clangd_get_hover`) for precise symbol inspection and type checking.
+- Search Espressif documentation via `search_espressif_sources` and component registry via `search_components`.
+- Inspect official datasheets and `pinout.h` before implementing custom register read/writes or timing requirements.
 
 ---
 
