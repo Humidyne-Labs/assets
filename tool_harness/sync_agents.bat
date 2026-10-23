@@ -13,7 +13,7 @@ if not exist "%SOURCE%" (
 
 :: Define target directories
 for %%D in (
-    "C:\Users\Matt\Documents\GitHub\esp32-s3_bsp"
+    "C:\Users\Matt\Documents\GitHub\H1OS"
     "C:\Users\Matt\Documents\GitHub\humid1-os\Source_Code\humid1_os_cpp"
 ) do (
     echo.
@@ -21,18 +21,22 @@ for %%D in (
     echo Target: %%~D
     echo ========================================================
 
-    if exist "%%~D\.agents" (
-        echo Removing existing .agents directory...
-        rmdir /s /q "%%~D\.agents"
-    )
+    if exist "%%~D" (
+        if exist "%%~D\.agents" (
+            echo Removing existing .agents directory...
+            rmdir /s /q "%%~D\.agents"
+        )
 
-    echo Copying fresh .agents directory...
-    robocopy "%SOURCE%" "%%~D\.agents" /E /R:1 /W:1 >nul
+        echo Copying fresh .agents directory...
+        robocopy "%SOURCE%" "%%~D\.agents" /E /R:1 /W:1 >nul
 
-    if errorlevel 8 (
-        echo [FAIL] Error copying files to %%~D\.agents
+        if errorlevel 8 (
+            echo [FAIL] Error copying files to %%~D\.agents
+        ) else (
+            echo [OK] Successfully copied to %%~D\.agents
+        )
     ) else (
-        echo [OK] Successfully copied to %%~D\.agents
+        echo [SKIP] Target path does not exist: %%~D
     )
 )
 
