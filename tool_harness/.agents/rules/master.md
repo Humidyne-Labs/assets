@@ -3,7 +3,7 @@
 ## 1. Core Directives & Mandates
 
 1. **Zero Guesswork Policy:** NEVER guess or extrapolate function prototypes, struct members, enums, peripheral pins, or configuration flags.
-   - Use semantic C/C++ navigation (`clangd_find_references`, `clangd_get_definition`, `clangd_get_hover`, `clangd_workspace_symbol`) for exact symbol inspection.
+   - Use compiler-backed semantic code intelligence (`get_definition`, `find_references`, `get_type_info`, `get_callers`, `get_callees`) for exact symbol inspection and call hierarchies.
    - Cross-reference authoritative headers (`h1os.h`, `hal_types.h`, `sub_*.h`, `orch_*.h`) before authoring calls.
 2. **Four-Layer Unidirectional Boundary Hierarchy:**
    - **Layer 1: HAL (`hal_*`)**: Stateless primitives manipulating registers and buses. Zero application state, zero math.
@@ -38,14 +38,14 @@ UI development is evaluated against physical hardware constraints rather than ho
 
 Proactively spawn subagents using `invoke_subagent` whenever:
 * **Research & Deep Lookups:** Multi-file codebase sweeps, register maps, or datasheet conversions (delegate to `research` subagent).
-* **Parallel Build & Analysis:** Independent tasks running concurrently (e.g. build verification running alongside linker map memory profiling via `firmware-analyzer`).
+* **Parallel Build & Analysis:** Independent tasks running concurrently (e.g. build verification running alongside documentation synthesis).
 * **Autonomous Continuation:** Do NOT poll subagents in loops; wait for reactive background system messages.
 
 ---
 
 ## 4. Compiler Diagnostics & Two-Strike Resolution Protocol
 
-* **Verification Mandate:** Never declare success without compilation verification via `trigger_idf_build` or the canonical profile command (`C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1`).
+* **Verification Mandate:** Never declare success without compilation verification via `esp-idf` MCP build or the canonical profile command (`C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1`).
 * **Two-Strike Protocol:**
   1. If compilation fails, isolate the exact diagnostic line from compiler output.
   2. Propose exactly one targeted syntactic or signature fix.

@@ -1,51 +1,41 @@
 {
   "mcpServers": {
-    "esp-component-registry": {
-      "serverUrl": "https://components.espressif.com/mcp"
+    "clangd": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/schuay/clangd-mcp.git",
+        "--with",
+        "mcp<2",
+        "clangd-mcp",
+        "--clangd",
+        "C:/clang+llvm-18.1.8/bin/clangd.exe",
+        "--compile-commands-dir",
+        "C:/Users/Matt/Documents/GitHub/H1OS/examples/H1OS/build_prod",
+        "--workspace-dir",
+        "C:/Users/Matt/Documents/GitHub/H1OS"
+      ]
+    },
+    "esp-idf": {
+      "command": "cmd.exe",
+      "args": [
+        "/c",
+        "C:\\esp\\v6.1\\esp-idf\\export.bat > nul && idf.py -C C:/Users/Matt/Documents/GitHub/H1OS/examples/H1OS mcp-server"
+      ]
+    },
+    "local-index": {
+      "command": "uvx",
+      "args": [
+        "code-index-mcp",
+        "--project-path",
+        "C:/Users/Matt/Documents/GitHub/H1OS/docs"
+      ]
     },
     "espressif-documentation": {
       "serverUrl": "https://mcp.espressif.com/docs"
     },
-    "firmware-analyzer": {
-      "command": "python",
-      "args": [
-        "c:/Users/Matt/Documents/GitHub/assets/tool_harness/mcp_servers/firmware_analyzer_mcp.py"
-      ],
-      "env": {
-        "BSP_BUILD_ROOT": "C:\\Users\\Matt\\Documents\\GitHub\\H1OS\\examples\\H1OS"
-      }
-    },
-    "idf-build": {
-      "command": "python",
-      "args": [
-        "c:/Users/Matt/Documents/GitHub/assets/tool_harness/mcp_servers/idf_build_mcp_server.py"
-      ],
-      "env": {
-        "BSP_BUILD_ROOT": "C:\\Users\\Matt\\Documents\\GitHub\\H1OS\\examples\\H1OS"
-      }
-    },
-    "clangd": {
-      "command": "python",
-      "args": [
-        "c:/Users/Matt/Documents/GitHub/assets/tool_harness/mcp_servers/clangd_mcp_server.py"
-      ],
-      "env": {
-        "CLANGD_PATH": "C:\\clang+llvm-18.1.8\\bin\\clangd.exe",
-        "WORKSPACE_ROOT": "C:\\Users\\Matt\\Documents\\GitHub\\H1OS"
-      }
-    },
-    "graphify": {
-      "command": "uv",
-      "args": [
-        "run",
-        "--with",
-        "graphifyy",
-        "--with",
-        "mcp",
-        "-m",
-        "graphify.serve",
-        "${workspace.path}/graphify-out/graph.json"
-      ]
+    "esp-component-registry": {
+      "serverUrl": "https://components.espressif.com/mcp"
     }
   }
 }

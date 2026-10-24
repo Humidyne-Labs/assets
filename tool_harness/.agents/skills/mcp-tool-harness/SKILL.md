@@ -1,31 +1,46 @@
 ---
 name: mcp-tool-harness
-description: Development, testing, logging, environment export, and subagent orchestration for the ESP32-S3 and H1OS MCP Tool Harness.
+description: Operational reference and subagent orchestration for the 3-Finger ESP32-S3 and H1OS MCP Tool Suite.
 ---
 
-# MCP Tool Harness Development & Subagent Orchestration Skill
+# 3-Finger MCP Architecture & Subagent Orchestration Skill
 
 ## Overview
-This skill provides operational procedures for maintaining, testing, and expanding the MCP Python Tool Harness for ESP32-S3 firmware development, Clangd LSP semantic code intelligence, and firmware memory footprint analysis.
+This skill governs the operational procedures, subagent delegation patterns, and tool interaction models for the 3-Finger MCP embedded firmware development architecture supporting H1OS on ESP32-S3.
 
-## Key Operational Capabilities
+## The 3-Finger Architecture
 
-### 1. Subagent Orchestration (`invoke_subagent` / `define_subagent`)
-* **Research Subagents**: Spawn `research` subagents when deep documentation searches, multi-file header analysis, or datasheet inspections are required.
-* **Parallel Execution**: Launch concurrent subagents for independent tasks (e.g. build verification running alongside documentation synthesis).
-* **Autonomous Continuation**: Do NOT poll subagents in loops. Wait for reactive background system messages.
+### Finger 1: Semantic Code Intelligence (`clangd`)
+* **Engine:** `schuay/clangd-mcp` via `uvx --with "mcp<2" clangd-mcp` bound to LLVM 18 (`C:\clang+llvm-18.1.8\bin\clangd.exe`) and H1OS's `compile_commands.json`.
+* **Zero-Hallucination Capabilities:**
+  - `get_callers` & `get_callees`: Full incoming/outgoing call hierarchies across tasks, drivers, and HAL.
+  - `get_definition`: Exact jumps to implementation or header declarations.
+  - `find_references`: Deterministic list of all call sites and symbol uses.
+  - `find_symbol`: Instant symbol lookups for structs, enums, typedefs, and functions.
+  - `get_type_info`: Complete type layout, sizing, and struct member signatures.
+* **Cost & Accuracy:** Runs locally at $0.00 token cost, replacing token-heavy eager whole-repo extraction.
 
-### 2. ESP-IDF Environment Export & Build Automation
-* **Automatic Discovery**: `init_idf_environment` discovers `C:\esp\v6.1\esp-idf\export.bat` or `export.sh` and exports `IDF_PATH`, `PATH`, GCC toolchains, Ninja, CMake, and Python virtualenv into `os.environ`.
-* **Execution**: Call `trigger_idf_build`, `get_idf_size`, or `reconfigure_idf_project` directly; environment variables auto-initialize prior to execution.
+### Finger 2: Hardware, Build & Serial Execution (`esp-idf`)
+* **Engine:** Native ESP-IDF v6.1 MCP server (`idf.py -C <project_dir> mcp-server`).
+* **Environment:** Automatically exports IDF environment (`C:\esp\v6.1\esp-idf\export.bat`).
+* **Capabilities:**
+  - `build_project`: Incremental compilation via Ninja, returning line-numbered diagnostics.
+  - `flash_project`: Direct flashing over USB/UART JTAG.
+  - Monitor tools: Captures boot sequence and runtime panic backtraces directly without manual terminal copy-paste.
 
-### 3. Semantic Code Navigation & Diagnostics (Clangd FastMCP Bridge)
-* **Symbol Navigation**: Call `clangd_find_references`, `clangd_get_definition`, `clangd_get_hover`, and `clangd_workspace_symbol` for authoritative type checking and cross-referencing without guessing.
-* **Diagnostics**: Query `clangd_get_diagnostics` to capture compiler-grade warnings and header inclusion errors across files.
+### Finger 3: Documentation & Datasheets (`local-index` & `espressif-documentation`)
+* **Local Indexer (`local-index`):** Runs `uvx code-index-mcp` targeting `H1OS/docs/` and converted markdown datasheets (`SHTC3`, `PCF85063A`, `ES8311`, `SSD1681`). Delivers pinpoint register definitions and blueprint excerpts on demand.
+* **Upstream Docs (`espressif-documentation`):** Official Espressif API docs, Technical Reference Manual (TRM) sections, and silicon errata via `https://mcp.espressif.com/docs`.
+* **Component Registry (`esp-component-registry`):** On-demand searches for certified Espressif IDF component packages.
 
-### 4. Memory Footprint Profiling (Firmware Analyzer)
-* **Map Analysis**: Call `get_memory_usage_summary` and `analyze_top_symbols` to inspect SRAM, PSRAM, and Flash consumption against partition constraints.
+## Subagent Orchestration Guidelines
 
-### 5. MCP Server Transport & Logging Integrity
-* **Oversight File Logs**: All servers append execution logs to `Path.home() / ".mcp_logs" / "<server_name>.log"` (`C:\Users\Matt\.mcp_logs\`).
-* **Stdio Transport**: All logging handlers write exclusively to physical log files and `sys.stderr`. `sys.stdout` must remain 100% pure JSON-RPC.
+### 1. Subagent Specialization
+* **Research Subagents (`research`):** Spawn for targeted, multi-step documentation searches, external datasheet verification, or deep header inspections that would clutter main conversation context.
+* **Parallel Execution:** Launch concurrent tasks for independent work (e.g. running build verification alongside documentation review).
+* **Reactive Wakeup:** Do NOT poll subagents in loops. Wait for background reactive wakeups from the agent messaging system.
+
+### 2. Zero Token-Burn Policy
+* **Never load entire repositories into context:** Always query `clangd` or `local-index` lazily.
+* **Single-file surgical edits:** Use `edit_file` with precise targets; avoid re-emitting whole files unnecessarily.
+* **Physical constraints over snapshots:** Validate UI against hardware constraints defined in `lvgl.md` rather than maintaining brittle host emulation frameworks.
