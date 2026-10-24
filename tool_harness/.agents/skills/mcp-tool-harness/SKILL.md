@@ -48,6 +48,30 @@ This skill governs the operational procedures, subagent delegation patterns, and
   - `fit_thermal_rc`: SciPy curve fitting of empirical sensor heating/cooling curves to derive time constant $\tau$.
   - `eval_symbolic_math`: SymPy symbolic simplification, factoring, and evaluation.
 
+### 3. Embedded Operations & Hardware Diagnostics (`embedded-ops`)
+* **Engine:** `uv run --with "mcp<2" --with pyserial tools/embedded_ops_mcp.py`
+* **Tools:**
+  - `murdock_memory_budget`: Structured Linker & Section Auditor. Evaluates `h1os.elf` via `xtensa-esp32s3-elf-size` and `nm` to return deterministic JSON byte counts and headroom percentages for DRAM, DIRAM, RTC FAST/SLOW, Flash partition headroom, and top section symbols.
+  - `ba_serial_capture_and_decode`: Non-blocking USB-JTAG serial capture with automated panic backtrace decoding via `xtensa-esp32s3-elf-addr2line`. Resolves stack frames down to `file:line (function)`.
+  - `clangd_touch_reload`: Touches `compile_commands.json`, `.clangd`, and probe headers to bust clangd compilation caches after reconfigures without session restarts.
+
+## Operational Workflows & Tool Schema Quirks
+
+### 1. Tool Parameter Quirks
+* **`local-index` / `search_code_advanced`**: Strictly requires the argument name `pattern: str` (do **NOT** pass `query`, which causes Pydantic schema validation failure).
+
+### 2. Memory Regression Gate
+* After any modification to ULP RISC-V assembly/C, RTC wake stubs, `.rtc` data, or LVGL display buffers, execute `embedded-ops/murdock_memory_budget` to verify:
+  - `rtc_fast_free_bytes` > 0
+  - `rtc_slow_free_bytes` > 0
+  - `diram_free_bytes` > 32 KB minimum operating headroom
+
+### 3. Automated Hardware Verification Loop
+The canonical 3-step hardware verification sequence is:
+1. `esp-idf/build_project` (or PowerShell profile build)
+2. `esp-idf/flash_project`
+3. `embedded-ops/ba_serial_capture_and_decode` (captures boot banner, telemetry, or decodes panic backtrace frames)
+
 ## Subagent Orchestration Guidelines
 
 ### 1. Subagent Specialization

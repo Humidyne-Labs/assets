@@ -36,6 +36,8 @@
       "args": [
         "--with",
         "mcp<2",
+        "--with",
+        "pytz",
         "mcp-server-duckdb",
         "--db-path",
         ":memory:"
@@ -56,6 +58,17 @@
         "--with",
         "numpy",
         "c:/Users/Matt/Documents/GitHub/assets/tool_harness/tools/science_mcp.py"
+      ]
+    },
+    "embedded-ops": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--with",
+        "mcp<2",
+        "--with",
+        "pyserial",
+        "c:/Users/Matt/Documents/GitHub/assets/tool_harness/tools/embedded_ops_mcp.py"
       ]
     },
     "espressif-documentation": {

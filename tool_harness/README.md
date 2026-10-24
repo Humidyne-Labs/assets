@@ -104,6 +104,13 @@ The harness is engineered around a zero-hallucination, zero-token-burn **3-Finge
   - `fit_thermal_rc`: SciPy curve fitting of empirical sensor heating/cooling curves to derive time constant $\tau$.
   - `eval_symbolic_math`: SymPy symbolic simplification, factoring, and evaluation.
 
+### 3. Embedded Operations & Hardware Diagnostics (`embedded-ops`)
+* **Engine:** `uv run --with "mcp<2" --with pyserial tools/embedded_ops_mcp.py`
+* **Tools:**
+  - `murdock_memory_budget`: Structured Linker & Section Auditor. Evaluates `h1os.elf` via `xtensa-esp32s3-elf-size` and `nm` to return deterministic JSON byte counts and headroom percentages for DRAM, DIRAM, RTC FAST/SLOW, and Flash partition headroom.
+  - `ba_serial_capture_and_decode`: Non-blocking USB-JTAG serial capture with automated panic backtrace decoding via `xtensa-esp32s3-elf-addr2line`. Resolves stack frames down to `file:line (function)`.
+  - `clangd_touch_reload`: Touches `compile_commands.json`, `.clangd`, and probe headers to bust clangd compilation caches after reconfigures without session restarts.
+
 ---
 
 ## ⚙️ Quick Start: Configuring MCP
@@ -145,6 +152,7 @@ To register the complete MCP workbench:
       "command": "uvx",
       "args": [
         "--with", "mcp<2",
+        "--with", "pytz",
         "mcp-server-duckdb",
         "--db-path", ":memory:"
       ]
@@ -159,6 +167,15 @@ To register the complete MCP workbench:
         "--with", "scipy",
         "--with", "numpy",
         "c:/Users/Matt/Documents/GitHub/assets/tool_harness/tools/science_mcp.py"
+      ]
+    },
+    "embedded-ops": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--with", "mcp<2",
+        "--with", "pyserial",
+        "c:/Users/Matt/Documents/GitHub/assets/tool_harness/tools/embedded_ops_mcp.py"
       ]
     },
     "espressif-documentation": {
