@@ -15,9 +15,22 @@ Instead of relying on regex or eager whole-repo LLM extraction (Graphify), `clan
 ## Architecture & Configuration
 
 * **Command**: `uvx --from git+https://github.com/schuay/clangd-mcp.git --with "mcp<2" clangd-mcp`
-* **Underlying Binary**: `C:\clang+llvm-18.1.8\bin\clangd.exe`
-* **Compilation Database**: `C:/Users/Matt/Documents/GitHub/H1OS/examples/H1OS/build_prod/compile_commands.json`
+* **Underlying Binary**: `C:\clang+llvm-18.1.8\bin\clangd_esp32.cmd` (wraps `clangd.exe` with `--query-driver="**/*xtensa-esp32s3-elf*,**/*esp-elf*"`)
+* **Compilation Database**: `compile_commands.json`
 * **Workspace Root**: `C:/Users/Matt/Documents/GitHub/H1OS`
+
+### 💡 Compilation Database Linkage Directive
+When opening or indexing the workspace, LLVM `clangd` searches the project root for `compile_commands.json`. 
+**If no root-level `compile_commands.json` exists**, the agent must create an NTFS hardlink from the active build directory:
+```powershell
+if (-not (Test-Path "compile_commands.json")) {
+    New-Item -ItemType HardLink -Path "compile_commands.json" -Target "examples/H1OS/build_dev/compile_commands.json"
+}
+```
+*Benefits:*
+1. **Zero disk duplication** and automatic bi-directional updates when CMake regenerates the database.
+2. Clangd, Clang-Tidy, and IDE extensions immediately acquire project-wide AST intelligence.
+3. Automatically git-ignored via `.gitignore`.
 
 ---
 

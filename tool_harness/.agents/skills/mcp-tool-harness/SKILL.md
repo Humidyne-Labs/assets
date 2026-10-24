@@ -11,7 +11,8 @@ This skill governs the operational procedures, subagent delegation patterns, and
 ## The 3-Finger Architecture
 
 ### Finger 1: Semantic Code Intelligence (`clangd`)
-* **Engine:** `schuay/clangd-mcp` via `uvx --with "mcp<2" clangd-mcp` bound to LLVM 18 (`C:\clang+llvm-18.1.8\bin\clangd.exe`) and H1OS's `compile_commands.json`.
+* **Engine:** `schuay/clangd-mcp` via `uvx --with "mcp<2" clangd-mcp` bound to LLVM 18 (`C:\clang+llvm-18.1.8\bin\clangd_esp32.cmd` with query-driver) and `compile_commands.json`.
+* **Root Link Invariant:** If `compile_commands.json` does not exist at workspace root, create an NTFS hardlink targeting `examples/H1OS/build_dev/compile_commands.json` (`New-Item -ItemType HardLink -Path "compile_commands.json" -Target "examples/H1OS/build_dev/compile_commands.json"`).
 * **Zero-Hallucination Capabilities:**
   - `get_callers` & `get_callees`: Full incoming/outgoing call hierarchies across tasks, drivers, and HAL.
   - `get_definition`: Exact jumps to implementation or header declarations.
