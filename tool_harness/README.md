@@ -66,7 +66,7 @@ The harness is engineered around a zero-hallucination, zero-token-burn **3-Finge
 
 ### Finger 1: Semantic Code Intelligence (`clangd`)
 * **Package:** `schuay/clangd-mcp` via `uvx --with "mcp<2" clangd-mcp`
-* **Underlying Engine:** LLVM 18 (`C:\clang+llvm-18.1.8\bin\clangd.exe`) reading `compile_commands.json`
+* **Underlying Engine:** LLVM 18 with cross-compiler query-driver (`clangd_esp32.cmd` invoking `C:\clang+llvm-18.1.8\bin\clangd.exe --query-driver="**/*xtensa-esp32s3-elf*,**/*esp-elf*"`) reading `compile_commands.json`
 * **Tools:**
   - `get_callers`: Full incoming call tree for any function.
   - `get_callees`: Outgoing call hierarchy.
@@ -90,9 +90,25 @@ The harness is engineered around a zero-hallucination, zero-token-burn **3-Finge
 
 ---
 
+## 🔬 Math, Science & Telemetry Add-Ons (Zero-Token Lazy Tools)
+
+### 1. Telemetry Number-Cruncher (`duckdb`)
+* **Engine:** `uvx --with "mcp<2" mcp-server-duckdb --db-path :memory:`
+* **Role:** In-memory DuckDB engine with zero Windows file-locking. Runs ad-hoc analytical SQL directly over test-chamber CSV logs, battery discharge dumps, and wake benchmarks via `read_csv_auto(...)`.
+
+### 2. Embedded Science & Verification Prover (`science`)
+* **Engine:** `uv run --with "mcp<2" --with sympy --with z3-solver --with scipy --with numpy tools/science_mcp.py`
+* **Tools:**
+  - `derive_fixed_point_polynomial`: Fits polynomial/Horner approximations for Magnus-Tetens psychrometric equations and exports ready-to-paste C code for FPU-less ULP RISC-V in Q16.16 / Q8.24 format with error bounds.
+  - `solve_z3_assertions`: Formal verification using Microsoft Z3 SMT solver. Proves freedom from race conditions and GPIO latching deadlocks across sleep/wake state machines.
+  - `fit_thermal_rc`: SciPy curve fitting of empirical sensor heating/cooling curves to derive time constant $\tau$.
+  - `eval_symbolic_math`: SymPy symbolic simplification, factoring, and evaluation.
+
+---
+
 ## ⚙️ Quick Start: Configuring MCP
 
-To register the 3-Finger servers:
+To register the complete MCP workbench:
 
 1. Open your global MCP configuration: `C:\Users\Matt\.gemini\config\mcp_config.json` (or active MCP client config).
 2. Ensure the configuration matches [`config/mcp_config.json`](file:///c:/Users/Matt/Documents/GitHub/assets/tool_harness/config/mcp_config.json):
@@ -106,8 +122,8 @@ To register the 3-Finger servers:
         "--from", "git+https://github.com/schuay/clangd-mcp.git",
         "--with", "mcp<2",
         "clangd-mcp",
-        "--clangd", "C:/clang+llvm-18.1.8/bin/clangd.exe",
-        "--compile-commands-dir", "C:/Users/Matt/Documents/GitHub/H1OS/examples/H1OS/build_prod",
+        "--clangd", "C:/clang+llvm-18.1.8/bin/clangd_esp32.cmd",
+        "--compile-commands-dir", "C:/Users/Matt/Documents/GitHub/H1OS/examples/H1OS/build_dev",
         "--workspace-dir", "C:/Users/Matt/Documents/GitHub/H1OS"
       ]
     },
@@ -123,6 +139,26 @@ To register the 3-Finger servers:
       "args": [
         "code-index-mcp",
         "--project-path", "C:/Users/Matt/Documents/GitHub/H1OS/docs"
+      ]
+    },
+    "duckdb": {
+      "command": "uvx",
+      "args": [
+        "--with", "mcp<2",
+        "mcp-server-duckdb",
+        "--db-path", ":memory:"
+      ]
+    },
+    "science": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--with", "mcp<2",
+        "--with", "sympy",
+        "--with", "z3-solver",
+        "--with", "scipy",
+        "--with", "numpy",
+        "c:/Users/Matt/Documents/GitHub/assets/tool_harness/tools/science_mcp.py"
       ]
     },
     "espressif-documentation": {

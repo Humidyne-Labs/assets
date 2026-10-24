@@ -9,9 +9,9 @@
         "mcp<2",
         "clangd-mcp",
         "--clangd",
-        "C:/clang+llvm-18.1.8/bin/clangd.exe",
+        "C:/clang+llvm-18.1.8/bin/clangd_esp32.cmd",
         "--compile-commands-dir",
-        "C:/Users/Matt/Documents/GitHub/H1OS/examples/H1OS/build_prod",
+        "C:/Users/Matt/Documents/GitHub/H1OS/examples/H1OS/build_dev",
         "--workspace-dir",
         "C:/Users/Matt/Documents/GitHub/H1OS"
       ]
@@ -29,6 +29,33 @@
         "code-index-mcp",
         "--project-path",
         "C:/Users/Matt/Documents/GitHub/H1OS/docs"
+      ]
+    },
+    "duckdb": {
+      "command": "uvx",
+      "args": [
+        "--with",
+        "mcp<2",
+        "mcp-server-duckdb",
+        "--db-path",
+        ":memory:"
+      ]
+    },
+    "science": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--with",
+        "mcp<2",
+        "--with",
+        "sympy",
+        "--with",
+        "z3-solver",
+        "--with",
+        "scipy",
+        "--with",
+        "numpy",
+        "c:/Users/Matt/Documents/GitHub/assets/tool_harness/tools/science_mcp.py"
       ]
     },
     "espressif-documentation": {

@@ -33,6 +33,20 @@ This skill governs the operational procedures, subagent delegation patterns, and
 * **Upstream Docs (`espressif-documentation`):** Official Espressif API docs, Technical Reference Manual (TRM) sections, and silicon errata via `https://mcp.espressif.com/docs`.
 * **Component Registry (`esp-component-registry`):** On-demand searches for certified Espressif IDF component packages.
 
+## Scientific Computing, Verification & Telemetry (Lazy-Loaded)
+
+### 1. Telemetry Analytics Engine (`duckdb`)
+* **Engine:** `uvx --with "mcp<2" mcp-server-duckdb --db-path :memory:`
+* **Usage:** Queries disk logs directly using SQL (`read_csv_auto('docs/telemetry/*.csv')`). No database ingestion or file-locking conflicts.
+
+### 2. Science & Math Prover (`science`)
+* **Engine:** `uv run --with "mcp<2" --with sympy --with z3-solver --with scipy --with numpy tools/science_mcp.py`
+* **Tools:**
+  - `derive_fixed_point_polynomial`: Computes Padé/Chebyshev integer polynomial approximations for FPU-less ULP RISC-V in Q16.16 / Q8.24 format with Horner evaluation code and error bounds.
+  - `solve_z3_assertions`: Formal verification using Microsoft Z3 SMT solver. Proves freedom from race conditions and GPIO latching deadlocks across sleep/wake state machines.
+  - `fit_thermal_rc`: SciPy curve fitting of empirical sensor heating/cooling curves to derive time constant $\tau$.
+  - `eval_symbolic_math`: SymPy symbolic simplification, factoring, and evaluation.
+
 ## Subagent Orchestration Guidelines
 
 ### 1. Subagent Specialization

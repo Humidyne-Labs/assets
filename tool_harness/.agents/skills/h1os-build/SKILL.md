@@ -44,9 +44,13 @@ Compiles with debug symbols into `build_dev`:
 ```
 
 ### Reconfigure / CMake Refresh
-Forces a clean CMake re-generation without wiping compiled object caches:
+Forces a clean CMake re-generation without wiping compiled object caches, applying the exact preset configs:
 ```powershell
-& "C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1"; idf.py -B build_prod reconfigure
+# Development profile (debug symbols, dev sdkconfig):
+& "C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1"; idf.py -B build_dev --preset dev reconfigure
+
+# Production profile (size-optimized, production sdkconfig):
+& "C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1"; idf.py -B build_prod --preset prod reconfigure
 ```
 
 ### Firmware Memory Size Breakdown
