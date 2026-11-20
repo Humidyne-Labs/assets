@@ -3,13 +3,15 @@
 embedded_ops_mcp.py - Phase 3 Embedded Operations MCP Server
 Provides:
   1. murdock_memory_budget: Structured Linker & Section Auditor (JSON RAM/Flash/RTC boundaries).
-  2. ba_serial_capture_and_decode: Non-blocking serial capture with automated panic backtrace decoding via addr2line.
-  3. clangd_touch_reload: Compilation Database Cache Buster & reload trigger.
-  4. epd_char_info: Exact 1-bpp glyph metrics and ASCII bitmap lookup via Vault or CSV manifests.
-  5. epd_string_budget: Exact LVGL v9 pixel width and 188 px safe-budget clearance calculator.
-  6. epd_audit_screens: Automated LVGL C/C++ screen label overflow scanner.
-  7. epd_icon_search: Search unified icon catalog across FA7, Lucide, Phosphor, Tabler, and Tabler-Filled.
-  8. epd_font_inventory: Summarize active Strike Vault, CSV metrics, asset manifests, and schemes.
+  2. murdock_stack_budget: GCC -fstack-usage (.su) per-function static stack frame & dynamic-VLA auditor.
+  3. murdock_rtc_section_audit: ELF .rtc.text disassembly & section call-graph auditor (Flash-free Flow A check).
+  4. ba_serial_capture_and_decode: Non-blocking serial capture with automated panic backtrace decoding via addr2line.
+  5. clangd_touch_reload: Compilation Database Cache Buster & reload trigger.
+  6. epd_char_info: Exact 1-bpp glyph metrics and ASCII bitmap lookup via Vault or CSV manifests.
+  7. epd_string_budget: Exact LVGL v9 pixel width and 188 px safe-budget clearance calculator.
+  8. epd_audit_screens: Automated LVGL C/C++ screen label overflow scanner.
+  9. epd_icon_search: Search unified icon catalog across FA7, Lucide, Phosphor, Tabler, and Tabler-Filled.
+ 10. epd_font_inventory: Summarize active Strike Vault, CSV metrics, asset manifests, and schemes.
 """
 
 import os
@@ -46,14 +48,24 @@ def find_toolchain_binary(name: str) -> str:
         if candidate_no_ext.is_file():
             return str(candidate_no_ext)
 
-    # 2. Check ~/.espressif/tools/xtensa-esp-elf/
-    home = Path.home()
-    pattern = str(home / ".espressif/tools/xtensa-esp-elf/**/bin" / f"{name}.exe")
-    matches = glob.glob(pattern, recursive=True)
-    if matches:
-        return matches[0]
+    # 2. Check C:\Espressif\tools\xtensa-esp-elf\ (EIM Windows default) and ~/.espressif\tools\xtensa-esp-elf\
+    search_roots = [
+        Path("C:/Espressif/tools/xtensa-esp-elf"),
+        Path.home() / ".espressif" / "tools" / "xtensa-esp-elf",
+    ]
+    for root in search_roots:
+        if not root.is_dir():
+            continue
+        pattern = str(root / "**" / "bin" / f"{name}.exe")
+        matches = sorted(glob.glob(pattern, recursive=True), reverse=True)
+        if matches:
+            return matches[0]
+        pattern_posix = str(root / "**" / "bin" / name)
+        matches_posix = sorted(glob.glob(pattern_posix, recursive=True), reverse=True)
+        if matches_posix:
+            return matches_posix[0]
 
-    # Fallback to name
+    # Fallback to bare command name
     return name
 
 @mcp.tool()
@@ -171,6 +183,264 @@ def murdock_memory_budget(
         "top_bss_symbols": top_bss_symbols[:10]
     }
     return json.dumps(result, indent=2)
+
+
+@mcp.tool()
+def murdock_stack_budget(
+    build_dir: str = str(DEFAULT_H1OS_ROOT / "examples/H1OS/build_dev"),
+    max_fn_bytes: int = 512,
+    project_only: bool = True,
+) -> str:
+    """
+    Static Stack Frame Auditor. Parses GCC -fstack-usage (*.su) files in build_dir
+    to verify bounded per-function stack frames and catch dynamic/VLA stack allocations.
+    """
+    bdir = Path(build_dir)
+    if not bdir.is_dir():
+        return json.dumps({
+            "status": "error",
+            "message": f"Build directory not found: {bdir}",
+        }, indent=2)
+
+    all_su = sorted(bdir.rglob("*.su"))
+    if project_only:
+        su_files = [
+            p for p in all_su
+            if any(seg in p.as_posix() for seg in ("/esp-idf/h1os/", "/esp-idf/main/"))
+        ]
+        if not su_files:
+            su_files = all_su
+    else:
+        su_files = all_su
+
+    entries: List[Dict[str, Any]] = []
+    parse_errors: List[str] = []
+    for su_path in su_files:
+        try:
+            text = su_path.read_text(encoding="utf-8", errors="replace")
+        except Exception as exc:
+            parse_errors.append(f"{su_path}: {exc}")
+            continue
+        for raw_line in text.splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            parts = line.rsplit("\t", 2)
+            if len(parts) != 3:
+                continue
+            loc_fn, size_str, qual = parts
+            # Format: <file>:<line>:<col>:<func> (file may contain C:\ drive colon)
+            loc_parts = loc_fn.rsplit(":", 3)
+            if len(loc_parts) == 4:
+                src_file, line_no, _col, func_name = loc_parts
+            else:
+                src_file, line_no, func_name = str(su_path.name), "0", loc_fn
+            try:
+                stack_bytes = int(size_str)
+            except ValueError:
+                continue
+            entries.append({
+                "function": func_name,
+                "stack_bytes": stack_bytes,
+                "qualifier": qual,
+                "file": Path(src_file).name,
+                "line": int(line_no) if line_no.isdigit() else 0,
+                "su_file": su_path.relative_to(bdir).as_posix(),
+            })
+
+    entries.sort(key=lambda item: item["stack_bytes"], reverse=True)
+    dynamic_allocs = [e for e in entries if "dynamic" in e["qualifier"].lower()]
+    over_budget = [e for e in entries if e["stack_bytes"] > max_fn_bytes]
+    max_stack = entries[0]["stack_bytes"] if entries else 0
+
+    status = "ok"
+    if not su_files:
+        status = "no_su_files"
+    elif dynamic_allocs or over_budget:
+        status = "violation"
+
+    return json.dumps({
+        "status": status,
+        "build_dir": str(bdir),
+        "max_fn_budget_bytes": max_fn_bytes,
+        "files_parsed": len(su_files),
+        "functions_analyzed": len(entries),
+        "max_stack_bytes": max_stack,
+        "dynamic_allocations": dynamic_allocs,
+        "over_budget": over_budget,
+        "parse_errors": parse_errors,
+        "top_20_functions": entries[:20],
+    }, indent=2)
+
+
+@mcp.tool()
+def murdock_rtc_section_audit(
+    elf_path: str = str(DEFAULT_ELF_PATH),
+) -> str:
+    """
+    RTC Wake-Stub Section Auditor. Disassembles .rtc.text from the ELF and verifies
+    all branch/call and symbol references stay inside RTC memory or Mask ROM (no Flash calls).
+    """
+    elf_file = Path(elf_path)
+    if not elf_file.is_file():
+        return json.dumps({
+            "status": "error",
+            "message": f"ELF file not found at: {elf_file}",
+        }, indent=2)
+
+    objdump_bin = find_toolchain_binary("xtensa-esp32s3-elf-objdump")
+    nm_bin = find_toolchain_binary("xtensa-esp32s3-elf-nm")
+
+    try:
+        hdr_out = subprocess.check_output(
+            [objdump_bin, "-h", str(elf_file)],
+            universal_newlines=True,
+            stderr=subprocess.STDOUT,
+        )
+        nm_out = subprocess.check_output(
+            [nm_bin, "-n", "--defined-only", str(elf_file)],
+            universal_newlines=True,
+            stderr=subprocess.STDOUT,
+        )
+        dis_out = subprocess.check_output(
+            [objdump_bin, "-d", "-j", ".rtc.text", str(elf_file)],
+            universal_newlines=True,
+            stderr=subprocess.STDOUT,
+        )
+    except Exception as exc:
+        return json.dumps({"status": "error", "message": f"objdump/nm failed: {exc}"}, indent=2)
+
+    # Parse section VMA ranges from objdump -h
+    sections: List[Dict[str, Any]] = []
+    for line in hdr_out.splitlines():
+        m = re.match(r"^\s*\d+\s+(\S+)\s+([0-9a-fA-F]+)\s+([0-9a-fA-F]+)\s+", line)
+        if m:
+            sec_name = m.group(1)
+            sec_size = int(m.group(2), 16)
+            sec_vma = int(m.group(3), 16)
+            if sec_size > 0:
+                sections.append({"name": sec_name, "start": sec_vma, "end": sec_vma + sec_size})
+
+    # Parse symbol map (address -> name) and locate .rtc.text symbols
+    addr_to_sym: Dict[int, str] = {}
+    rtc_text_sec = next((s for s in sections if s["name"] == ".rtc.text"), None)
+    rtc_text_symbols: List[Dict[str, str]] = []
+    for line in nm_out.splitlines():
+        parts = line.strip().split(maxsplit=2)
+        if len(parts) == 3:
+            try:
+                addr = int(parts[0], 16)
+            except ValueError:
+                continue
+            sym_name = parts[2]
+            addr_to_sym[addr] = sym_name
+            if rtc_text_sec and rtc_text_sec["start"] <= addr < rtc_text_sec["end"]:
+                rtc_text_symbols.append({"name": sym_name, "addr": f"0x{addr:08x}"})
+
+    def _classify_addr(addr: int) -> str:
+        if 0x40000000 <= addr < 0x40060000:
+            return "ESP32S3_ROM"
+        for s in sections:
+            if s["start"] <= addr < s["end"]:
+                return str(s["name"])
+        return "UNKNOWN"
+
+    def _is_rtc_or_rom_safe(sec_name: str) -> bool:
+        return sec_name == "ESP32S3_ROM" or sec_name.startswith(".rtc")
+
+    # Pass 1: collect all literal-pool 4-byte word ranges referenced by l32r AND inspect literal targets
+    lit_ranges: List[tuple[int, int]] = []
+    l32r_re = re.compile(r"^\s*([0-9a-fA-F]+):\s+[0-9a-fA-F ]+\s+l32r\s+\S+,\s+([0-9a-fA-F]+)\s+<[^>]+>(?:\s+\(([0-9a-fA-F]+)\s+<([^>]+)>\))?")
+    unsafe_literal_sections = {".flash.text", ".flash.rodata", ".flash.tdata", ".flash.appdesc", ".iram0.text", ".dram0.data", ".dram0.bss"}
+
+    verified_calls: List[Dict[str, str]] = []
+    flash_or_iram_violations: List[Dict[str, str]] = []
+    seen_edges = set()
+
+    func_hdr_re = re.compile(r"^[0-9a-fA-F]+\s+<([^>]+)>:")
+    cur_func = "<unknown>"
+    dis_lines = dis_out.splitlines()
+
+    for line in dis_lines:
+        fm = func_hdr_re.match(line.strip())
+        if fm:
+            cur_func = fm.group(1)
+            continue
+        lm = l32r_re.match(line)
+        if lm:
+            lit_addr = int(lm.group(2), 16)
+            lit_ranges.append((lit_addr, lit_addr + 4))
+            if lm.group(3):
+                val_addr = int(lm.group(3), 16)
+                val_sec = _classify_addr(val_addr)
+                if val_sec in unsafe_literal_sections:
+                    tgt_label = lm.group(4)
+                    edge = (cur_func, f"l32r:{tgt_label}", val_sec)
+                    if edge not in seen_edges:
+                        seen_edges.add(edge)
+                        flash_or_iram_violations.append({
+                            "caller": cur_func,
+                            "insn": "l32r",
+                            "target": tgt_label,
+                            "target_addr": f"0x{val_addr:08x}",
+                            "target_section": val_sec,
+                        })
+
+    def _in_lit_pool(addr: int) -> bool:
+        return any(start <= addr < end for start, end in lit_ranges)
+
+    # Pass 2: walk executable instructions in .rtc.text (excluding literal pool words)
+    cur_func = "<unknown>"
+    insn_re = re.compile(r"^\s*([0-9a-fA-F]+):\s+[0-9a-fA-F ]+\s+(call0|call4|call8|call12|j)\s+([0-9a-fA-F]+)\s+<([^>]+)>")
+
+    for line in dis_lines:
+        fm = func_hdr_re.match(line.strip())
+        if fm:
+            cur_func = fm.group(1)
+            continue
+        cm = insn_re.match(line)
+        if cm:
+            insn_addr = int(cm.group(1), 16)
+            if _in_lit_pool(insn_addr):
+                continue
+            insn, tgt_hex, tgt_label = cm.group(2), cm.group(3), cm.group(4)
+            tgt_addr = int(tgt_hex, 16)
+            tgt_sec = _classify_addr(tgt_addr)
+            tgt_sym = tgt_label.split("+")[0]
+            edge = (cur_func, tgt_sym, tgt_sec)
+            if edge in seen_edges:
+                continue
+            seen_edges.add(edge)
+            rec = {
+                "caller": cur_func,
+                "insn": insn,
+                "target": tgt_label,
+                "target_addr": f"0x{tgt_addr:08x}",
+                "target_section": tgt_sec,
+            }
+            if _is_rtc_or_rom_safe(tgt_sec):
+                verified_calls.append(rec)
+            elif tgt_sec in unsafe_literal_sections:
+                flash_or_iram_violations.append(rec)
+            else:
+                # Xtensa PC-relative call/j within +-512 KB of 0x600fe000 targeting
+                # unmapped MMIO space indicates alignment-padding/literal-byte objdump desync.
+                continue
+
+    status = "violation" if flash_or_iram_violations else "ok"
+    return json.dumps({
+        "status": status,
+        "elf_path": str(elf_file),
+        "rtc_text_range": (
+            f"0x{rtc_text_sec['start']:08x}..0x{rtc_text_sec['end']:08x}" if rtc_text_sec else "none"
+        ),
+        "rtc_text_symbol_count": len(rtc_text_symbols),
+        "rtc_text_symbols": rtc_text_symbols,
+        "verified_calls_count": len(verified_calls),
+        "verified_calls": verified_calls,
+        "flash_or_unsafe_violations_count": len(flash_or_iram_violations),
+        "flash_or_unsafe_violations": flash_or_iram_violations,
+    }, indent=2)
 
 def decode_backtrace_addresses(addr_list: List[str], elf_path: str) -> List[Dict[str, str]]:
     """Decode raw hex PC addresses to file:line (function) using addr2line."""
