@@ -93,11 +93,11 @@ All UI code targets the Waveshare ESP32-S3 ePaper 1.54" V2 panel (SSD1681 driver
 * **Usable Margins & Maximum Width:** $X = 6\text{ px}$ to $194\text{ px}$. Maximum string width is strictly **$\le 188.0\text{ px}$**.
 * **Color Depth:** 1-bit Monochrome (`LV_COLOR_FORMAT_I1`), pure black and pure white. Draw buffer: exactly 5,000 bytes.
 * **100% Opacity Mandate:** Opacity must always be `LV_OPA_COVER` (100%). Alpha blending, partial opacity (`LV_OPA_50`), and pseudo-random dithering are strictly prohibited.
-* **Typography:** Minimum font height is **14 pixels** (e.g. `H1OS_FONT_14`). Fonts <14 px blur into illegibility during differential updates.
-* **Proportional Font Rules:** Montserrat font metrics are proportional with 4-bit fractional advance widths and class kerning. Never use multiple spaces for alignment; use dual column labels or single-space padding.
+* **Typography:** Minimum font height is **14 pixels** (e.g. `HUMID1_FONT_UI_BODY` / `H1OS_FONT_14`, symbol `humid1_font_plex_sans_normal_14`). Fonts <14 px blur into illegibility during differential updates.
+* **Proportional Font Rules:** IBM Plex Sans metrics are proportional with 4-bit fractional advance widths (`adv_w_fp4`, `(adv_w_fp4 + kern_fp4 + 8) >> 4`), while IBM Plex Mono & Terminus provide fixed tabular widths for aligned readouts. Never use multiple spaces for proportional alignment; use dual column labels or tabular mono strikes.
 * **Layout Grid (200 px Total):** Header ($Y = 0..20\text{ px}$ with 1 px bottom border), Body ($Y = 22..148\text{ px}$), Footer ($Y = 150..200\text{ px}$).
 * **Thread Safety:** Wrap all UI mutations in `h1os_lvgl_lock()` / `h1os_lvgl_unlock()`.
-* **Font Validation Tools:** Verify all strings against layout boundaries using `python tools/check_string_width.py --audit-screens` and CSV metrics in `tools/fonts/`.
+* **Font Validation Tools:** Verify all strings and screens using `embedded-ops` MCP tools (`epd_char_info`, `epd_string_budget`, `epd_audit_screens`, `epd_icon_search`, `epd_font_inventory`), the global `epd-typography` skill, and packaged CSV manifests in `components/h1os/tools/fonts/metrics/`.
 
 ---
 
@@ -184,13 +184,14 @@ The 3-Finger MCP tool suite equips the agent with compiler-grade AST intelligenc
   - ❌ *Bad:* Running `grep -r "sensor_fail_count"` across all files, reading 50 lines of context per match.
   - ✅ *Good:* Calling `get_definition` on `orch_sensor_err_t` to verify enum values, then `find_references` on `sensor_fail_count` to map every assignment in `orch_wake_stub.c`.
 
-### 2. Embedded Diagnostics & Memory Budgets (`embedded-ops`)
-* **Available Tools:** `murdock_memory_budget`, `ba_serial_capture_and_decode`, `clangd_touch_reload`.
-* **Purpose & Application:** Binary inspection and runtime verification.
+### 2. Embedded Diagnostics, Memory Budgets & EPD Typography (`embedded-ops`)
+* **Available Tools:** `murdock_memory_budget`, `ba_serial_capture_and_decode`, `clangd_touch_reload`, `epd_char_info`, `epd_string_budget`, `epd_audit_screens`, `epd_icon_search`, `epd_font_inventory`.
+* **Purpose & Application:** Binary inspection, runtime verification, and 1-bpp EPD typography budgeting.
   - `murdock_memory_budget`: Evaluates compiled `h1os.elf` using `xtensa-esp32s3-elf-size` and `nm` to return structured JSON byte counts for DRAM, DIRAM, RTC Slow, and Flash partition headroom.
   - `ba_serial_capture_and_decode`: Captures serial boot sequences and automatically runs `xtensa-esp32s3-elf-addr2line` to decode panic backtraces to `file:line (function)`.
   - `clangd_touch_reload`: Busts clangd AST cache after CMake reconfigures without restarting sessions.
-* **Why Preferred Over Host Text Dumps:** Eliminates manual calculation of linker map addresses; immediately catches RTC Slow SRAM overflow (>4 KB) before hardware deployment.
+  - `epd_*` Typography Tools: Backed by `epd-font/tools/agent/tools/epd_typography.py` (reads Strike Vault + packaged `metrics/*.csv`) to compute exact pixel widths, glyph boxes, icon search (`fa7`, `lucide`, `phosphor`, `tabler`, `tabler_filled`), and automated `lv_label_set_text[_fmt]` viewport audits (`<= 188 px`).
+* **Why Preferred Over Host Text Dumps:** Eliminates manual calculation of linker map addresses and glyph widths; immediately catches RTC Slow SRAM (>4 KB) or 188 px UI overflows before hardware deployment.
 
 ### 3. Telemetry & Tabular Analytics (`duckdb`)
 * **Available Tools:** `query`.
@@ -198,8 +199,8 @@ The 3-Finger MCP tool suite equips the agent with compiler-grade AST intelligenc
 * **Why Preferred Over Ad-Hoc Scripts:**
   - Allows instant multi-file aggregation (e.g., font metric audits, temperature delta queries over 10-hour chamber tests) in a single turn without writing throwaway Python parsing scripts.
 * **Workflow Example:**
-  - ❌ *Bad:* Writing a 40-line Python script to load `char_widths_montserrat_14.csv`, sort by width, and print the top 5 widest characters.
-  - ✅ *Good:* Executing `SELECT char, width_px FROM 'tools/fonts/char_widths_montserrat_14.csv' ORDER BY width_px DESC LIMIT 5;` via DuckDB.
+  - ❌ *Bad:* Writing a throwaway Python script to load `char_widths_*.csv`, sort by width, and print the top 5 widest characters.
+  - ✅ *Good:* Executing `SELECT char, width_px FROM read_csv_auto('components/h1os/tools/fonts/metrics/char_widths_humid1_font_plex_sans_normal_14.csv') ORDER BY width_px DESC LIMIT 5;` via DuckDB.
 
 ### 4. Mathematical Grounding & Formal Verification (`science`)
 * **Available Tools:** `derive_fixed_point_polynomial`, `solve_z3_assertions`, `fit_thermal_rc`, `eval_symbolic_math`.

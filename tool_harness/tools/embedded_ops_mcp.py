@@ -5,6 +5,11 @@ Provides:
   1. murdock_memory_budget: Structured Linker & Section Auditor (JSON RAM/Flash/RTC boundaries).
   2. ba_serial_capture_and_decode: Non-blocking serial capture with automated panic backtrace decoding via addr2line.
   3. clangd_touch_reload: Compilation Database Cache Buster & reload trigger.
+  4. epd_char_info: Exact 1-bpp glyph metrics and ASCII bitmap lookup via Vault or CSV manifests.
+  5. epd_string_budget: Exact LVGL v9 pixel width and 188 px safe-budget clearance calculator.
+  6. epd_audit_screens: Automated LVGL C/C++ screen label overflow scanner.
+  7. epd_icon_search: Search unified icon catalog across FA7, Lucide, Phosphor, Tabler, and Tabler-Filled.
+  8. epd_font_inventory: Summarize active Strike Vault, CSV metrics, asset manifests, and schemes.
 """
 
 import os
@@ -23,6 +28,12 @@ mcp = FastMCP("embedded-ops")
 
 DEFAULT_H1OS_ROOT = Path("C:/Users/Matt/Documents/GitHub/H1OS")
 DEFAULT_ELF_PATH = DEFAULT_H1OS_ROOT / "examples/H1OS/build_dev/h1os.elf"
+DEFAULT_EPD_FONT_TOOLS_DIR = Path(
+    os.environ.get("EPD_FONT_TOOLS_DIR", "C:/Users/Matt/Documents/GitHub/epd-font/tools/agent/tools")
+)
+if str(DEFAULT_EPD_FONT_TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(DEFAULT_EPD_FONT_TOOLS_DIR))
+import epd_typography as _epd_typo
 
 def find_toolchain_binary(name: str) -> str:
     """Find xtensa toolchain binary on PATH or standard Espressif tool directory."""
@@ -298,6 +309,119 @@ def clangd_touch_reload(
         "message": "Touched compilation database and probe files to trigger clangd re-index.",
         "touched_files": touched
     }, indent=2)
+
+
+@mcp.tool()
+def epd_char_info(
+    strike: str = "humid1_font_plex_sans_normal_14",
+    char_query: str = "@",
+    workspace_dir: str = str(DEFAULT_H1OS_ROOT),
+    vault_path: str = "",
+    metrics_dir: str = "",
+    prefer_csv: bool = False,
+) -> str:
+    """Look up exact 1-bpp LVGL v9 glyph metrics and pixel bitmap for a character or icon."""
+    try:
+        res = _epd_typo.inspect_char(
+            strike=strike,
+            char_query=char_query,
+            workspace_dir=workspace_dir,
+            vault_path=vault_path or None,
+            metrics_dir=metrics_dir or None,
+            prefer_csv=prefer_csv,
+        )
+        return json.dumps({"status": "ok", **res}, indent=2)
+    except Exception as exc:
+        return json.dumps({"status": "error", "message": str(exc)}, indent=2)
+
+
+@mcp.tool()
+def epd_string_budget(
+    strike: str = "humid1_font_plex_sans_normal_14",
+    text: str = "",
+    right_text: str = "",
+    right_strike: str = "",
+    hw_scheme: str = "esp32s3-N8R8-hw_scheme.json",
+    min_gap: int = 8,
+    workspace_dir: str = str(DEFAULT_H1OS_ROOT),
+    vault_path: str = "",
+    metrics_dir: str = "",
+    prefer_csv: bool = False,
+) -> str:
+    """Calculate exact LVGL v9 pixel width and 188 px EPD layout clearance for a string or split telemetry row."""
+    try:
+        res = _epd_typo.measure_string_budget(
+            strike=strike,
+            text=text,
+            right_text=right_text or None,
+            right_strike=right_strike or None,
+            hw_scheme=hw_scheme,
+            min_gap=min_gap,
+            workspace_dir=workspace_dir,
+            vault_path=vault_path or None,
+            metrics_dir=metrics_dir or None,
+            prefer_csv=prefer_csv,
+        )
+        return json.dumps({"status": "ok", **res}, indent=2)
+    except Exception as exc:
+        return json.dumps({"status": "error", "message": str(exc)}, indent=2)
+
+
+@mcp.tool()
+def epd_audit_screens(
+    workspace_dir: str = str(DEFAULT_H1OS_ROOT),
+    screen_dir: str = "",
+    default_strike: str = "humid1_font_plex_sans_normal_14",
+    hw_scheme: str = "esp32s3-N8R8-hw_scheme.json",
+    vault_path: str = "",
+    metrics_dir: str = "",
+) -> str:
+    """Scan C/C++ UI screen files for lv_label_set_text[_fmt] strings exceeding the usable display budget."""
+    try:
+        res = _epd_typo.audit_screen_strings(
+            workspace_dir=workspace_dir,
+            screen_dir=screen_dir or None,
+            default_strike=default_strike,
+            hw_scheme=hw_scheme,
+            vault_path=vault_path or None,
+            metrics_dir=metrics_dir or None,
+        )
+        return json.dumps({"status": "ok", **res}, indent=2)
+    except Exception as exc:
+        return json.dumps({"status": "error", "message": str(exc)}, indent=2)
+
+
+@mcp.tool()
+def epd_icon_search(
+    query: str = "",
+    vendor: str = "all",
+    limit: int = 25,
+    workspace_dir: str = str(DEFAULT_H1OS_ROOT),
+) -> str:
+    """Search unified_icon_names.json across FA7, Lucide, Phosphor, Tabler, and Tabler-Filled icon catalogs."""
+    try:
+        res = _epd_typo.search_icons(
+            query=query,
+            vendor=vendor,
+            limit=limit,
+            workspace_dir=workspace_dir,
+        )
+        return json.dumps({"status": "ok", **res}, indent=2)
+    except Exception as exc:
+        return json.dumps({"status": "error", "message": str(exc)}, indent=2)
+
+
+@mcp.tool()
+def epd_font_inventory(
+    workspace_dir: str = str(DEFAULT_H1OS_ROOT),
+) -> str:
+    """Summarize active Strike Vault strikes, packaged CSV metric manifests, asset counts, and font schemes."""
+    try:
+        res = _epd_typo.inventory_fonts(workspace_dir=workspace_dir)
+        return json.dumps({"status": "ok", **res}, indent=2)
+    except Exception as exc:
+        return json.dumps({"status": "error", "message": str(exc)}, indent=2)
+
 
 if __name__ == "__main__":
     mcp.run()

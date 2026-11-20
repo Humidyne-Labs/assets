@@ -104,12 +104,13 @@ The harness is engineered around a zero-hallucination, zero-token-burn **3-Finge
   - `fit_thermal_rc`: SciPy curve fitting of empirical sensor heating/cooling curves to derive time constant $\tau$.
   - `eval_symbolic_math`: SymPy symbolic simplification, factoring, and evaluation.
 
-### 3. Embedded Operations & Hardware Diagnostics (`embedded-ops`)
+### 3. Embedded Operations, Hardware Diagnostics & EPD Typography (`embedded-ops`)
 * **Engine:** `uv run --with "mcp<2" --with pyserial tools/embedded_ops_mcp.py`
 * **Tools:**
   - `murdock_memory_budget`: Structured Linker & Section Auditor. Evaluates `h1os.elf` via `xtensa-esp32s3-elf-size` and `nm` to return deterministic JSON byte counts and headroom percentages for DRAM, DIRAM, RTC FAST/SLOW, and Flash partition headroom.
   - `ba_serial_capture_and_decode`: Non-blocking USB-JTAG serial capture with automated panic backtrace decoding via `xtensa-esp32s3-elf-addr2line`. Resolves stack frames down to `file:line (function)`.
   - `clangd_touch_reload`: Touches `compile_commands.json`, `.clangd`, and probe headers to bust clangd compilation caches after reconfigures without session restarts.
+  - `epd_char_info`, `epd_string_budget`, `epd_audit_screens`, `epd_icon_search`, `epd_font_inventory`: Single-source 1-bpp EPD typography tools backed by `epd-font/tools/agent/tools/epd_typography.py` (reads Strike Vault + packaged `metrics/*.csv`).
 
 ---
 

@@ -61,8 +61,8 @@ Y = 200 px +-------------------------------------------------------+
 ## 4. Typography & Font Constraints
 
 1. **Minimum Readable Font Size Mandate (≥ 14 px Height):**
-   - **Minimum font height is 14 pixels** (e.g. `LV_FONT_MONTSERRAT_14` or pre-rendered 1bpp fonts).
-   - Fonts smaller than 14 px (e.g. 8pt, 10pt, 12pt) are **STRICTLY FORBIDDEN**. At 188 DPI, glyph strokes narrower than 2 physical pixels blur into illegibility during differential partial updates.
+   - **Minimum font height is 14 pixels** (e.g. `HUMID1_FONT_UI_BODY` / `H1OS_FONT_14`, symbol `humid1_font_plex_sans_normal_14`, pre-rendered 1-bpp LVGL v9+ strikes in `humid1_fonts.h` / `h1os_fonts.h`).
+   - Fonts smaller than 14 px for body copy (e.g. 8pt, 10pt, 12pt) blur into illegibility during differential partial updates; verify glyphs, pixel budgets (`<= 188 px`), and screen templates via `embedded-ops` (`epd_char_info`, `epd_string_budget`, `epd_audit_screens`) and `components/h1os/tools/fonts/metrics/`.
 2. **Emphasis Hierarchy:**
    - Large Telemetry Metric: 24 px to 32 px height.
    - Header & Subtitle: 14 px height bold / uppercase.

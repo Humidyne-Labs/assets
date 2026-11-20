@@ -48,12 +48,13 @@ This skill governs the operational procedures, subagent delegation patterns, and
   - `fit_thermal_rc`: SciPy curve fitting of empirical sensor heating/cooling curves to derive time constant $\tau$.
   - `eval_symbolic_math`: SymPy symbolic simplification, factoring, and evaluation.
 
-### 3. Embedded Operations & Hardware Diagnostics (`embedded-ops`)
+### 3. Embedded Operations, Hardware Diagnostics & EPD Typography (`embedded-ops`)
 * **Engine:** `uv run --with "mcp<2" --with pyserial tools/embedded_ops_mcp.py`
 * **Tools:**
   - `murdock_memory_budget`: Structured Linker & Section Auditor. Evaluates `h1os.elf` via `xtensa-esp32s3-elf-size` and `nm` to return deterministic JSON byte counts and headroom percentages for DRAM, DIRAM, RTC FAST/SLOW, Flash partition headroom, and top section symbols.
   - `ba_serial_capture_and_decode`: Non-blocking USB-JTAG serial capture with automated panic backtrace decoding via `xtensa-esp32s3-elf-addr2line`. Resolves stack frames down to `file:line (function)`.
   - `clangd_touch_reload`: Touches `compile_commands.json`, `.clangd`, and probe headers to bust clangd compilation caches after reconfigures without session restarts.
+  - `epd_char_info`, `epd_string_budget`, `epd_audit_screens`, `epd_icon_search`, `epd_font_inventory`: Single-source EPD 1-bpp typography inspector backed by `epd-font/tools/agent/tools/epd_typography.py` (reads Strike Vault + packaged `metrics/*.csv`).
 
 ## Operational Workflows & Tool Schema Quirks
 
